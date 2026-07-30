@@ -1,17 +1,43 @@
+
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Supabase · TS
 import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Variáveis de ambiente do Supabase não configuradas')
-}
-
+ 
+// Se as variáveis não estiverem configuradas (ex.: deploy só de preview
+// visual, sem Supabase por trás), usamos valores de fallback só pra
+// createClient() não travar a aplicação inteira na inicialização — o
+// PasswordGate detecta a ausência da variável real (VITE_SUPABASE_URL) e
+// entra em modo demo, então essas chamadas ao Supabase nunca chegam a ser
+// usadas de verdade nesse cenário.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key'
+ 
 const getAuthStorage = (): Storage | undefined => {
   if (typeof window === 'undefined') return undefined
-
+ 
   const testKey = '__supabase_storage_test__'
-
+ 
   try {
     window.localStorage.setItem(testKey, '1')
     window.localStorage.removeItem(testKey)
@@ -26,7 +52,7 @@ const getAuthStorage = (): Storage | undefined => {
     }
   }
 }
-
+ 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -35,7 +61,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: getAuthStorage(),
   },
 })
-
+ 
 export type DashboardOverride = {
   id: string
   user_id: string
@@ -50,3 +76,6 @@ export type DashboardOverride = {
   roi_atual: string | null
   updated_at: string
 }
+ 
+
+
