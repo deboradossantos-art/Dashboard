@@ -17,18 +17,10 @@ import {
   calcTaxaAtivacao, calcTaxaRecorrenciaCartao, calcIndiceConciliacao, calcDeltaPct,
   CANAIS_ORIGEM, MODALIDADES, MODALIDADE_COLORS,
 } from "@/data/strategicData";
+// Fallback específico do histórico da Ser Feliz para meses sem dado no
+// Supabase — ver comentário no topo do arquivo sobre adaptar/zerar num fork.
+import { monthIndex, valuesByMonth } from "@/data/legacyMonthlyFallback";
 
-// Index mapping in dashboardData GENERAL_MONTH_RAW (0=Jun..5=Jan)
-const monthIndex: Record<string, number> = { "2026-07": 0, "2026-06": 1, "2026-05": 2, "2026-04": 3, "2026-03": 4, "2026-02": 5, "2026-01": 6 };
-const valuesByMonth = {
-  vol: [132, 1897, 1451, 1560, 520, 639],
-  resp: [null, null, null, 12.5, 11.7, 11.9] as (number | null)[],
-  csat: [null, null, null, 4.5, 4.6, 4.4] as (number | null)[],
-  receitaRel: [11855, 159828.77, 124117.28, 228580.55, 154022.46, 104248.81],
-  receitaReal: [12250, 173223.77, 103086.28, 177720.13, 40699.61, 35615.01],
-  receitaPrev: [329775.94, 327214.94, 295871.44, 240390.69, 161345, 161345],
-  cadastros: [5307, 5276, 4846, 3936, 2796, 2768],
-};
 const conversionColors = ["#FDBA74", "#5EAAB8", "#1B7E91", "#0F5C6B", "#2D9CAD", "#F4A833"];
 
 interface MonthlyReport {

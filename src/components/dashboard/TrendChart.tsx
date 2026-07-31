@@ -1,5 +1,6 @@
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import ChartDataSummary from "./ChartDataSummary";
+import ChartEmptyState from "./ChartEmptyState";
 
 interface TrendChartProps {
   title: string;
@@ -23,31 +24,37 @@ const TrendChart = ({ title, data, color, label }: TrendChartProps) => {
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm">
       <h3 className="text-base font-semibold text-foreground mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <AreaChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="day" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-          <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "0.5rem",
-              fontSize: 12,
-            }}
+      {data.length === 0 ? (
+        <ChartEmptyState />
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="day" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "0.5rem",
+                  fontSize: 12,
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => <span className="text-muted-foreground">{v}</span>} />
+              <Area type="monotone" dataKey="value" name={label} stroke={color} fill={color} fillOpacity={0.1} />
+            </AreaChart>
+          </ResponsiveContainer>
+          <ChartDataSummary
+            items={[
+              { name: "Total", value: fmt(total), color },
+              { name: "Média", value: fmt(Number(avg.toFixed(2))), color },
+              { name: "Máx", value: fmt(max), color },
+              { name: "Mín", value: fmt(min), color },
+            ]}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => <span className="text-muted-foreground">{v}</span>} />
-          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={color} fillOpacity={0.1} />
-        </AreaChart>
-      </ResponsiveContainer>
-      <ChartDataSummary
-        items={[
-          { name: "Total", value: fmt(total), color },
-          { name: "Média", value: fmt(Number(avg.toFixed(2))), color },
-          { name: "Máx", value: fmt(max), color },
-          { name: "Mín", value: fmt(min), color },
-        ]}
-      />
+        </>
+      )}
     </div>
   );
 };

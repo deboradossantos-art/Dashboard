@@ -98,12 +98,36 @@ Depois, em Authentication > Providers, habilite o **Google** e configure as
 URLs de redirect (a própria tela do Supabase mostra a URL de callback a
 cadastrar no Google Cloud Console).
 
-**Sobre RLS (Row Level Security):** por padrão essas tabelas ficam sem RLS
-habilitado, ou seja, legíveis/graváveis por qualquer chave anônima válida.
-Se isso for uma preocupação pro seu setor, habilite RLS e crie policies
-específicas antes de colocar dados reais em produção — o dashboard atual não
-depende de RLS estar desligado, só foi construído assumindo acesso simples
-via anon key.
+**⚠️ Sobre RLS (Row Level Security) — leia antes de subir dados reais:**
+por padrão essas tabelas ficam sem RLS habilitado, ou seja, legíveis/graváveis
+por qualquer pessoa que tenha a `anon key` — que é pública, pois vai embutida
+no bundle JavaScript enviado ao navegador de qualquer visitante. O login do
+dashboard (`VITE_ALLOWED_EMAILS`/`VITE_ALLOWED_EMAIL_DOMAIN`) é **só uma
+barreira de interface**: ele decide se o dashboard *mostra* as telas, mas não
+impede ninguém de chamar a API REST do Supabase diretamente com a anon key e
+ler ou alterar as tabelas sem passar pelo login. Ou seja, hoje a proteção real
+dos dados é a obscuridade da URL/chave do projeto, não controle de acesso.
+
+Se o setor for colocar dados reais de doadores em produção, **habilite RLS e
+crie policies antes disso** — não é opcional para uso sério. Exemplo mínimo
+(restringe leitura/escrita a usuários autenticados via Supabase Auth, que é
+quem passou pelo login Google):
+
+```sql
+alter table strategic_kpi_reports enable row level security;
+alter table channel_modality_reports enable row level security;
+alter table donor_status_reports enable row level security;
+alter table donor_funnel_reports enable row level security;
+alter table audit_log enable row level security;
+
+create policy "Authenticated read/write" on strategic_kpi_reports
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- repita a policy acima (trocando o nome da tabela) para as demais tabelas
+```
+
+Isso ainda não filtra por email/domínio permitido — só exige uma sessão
+Supabase válida. Se precisar restringir por email, combine com uma checagem
+de `auth.jwt() ->> 'email'` na policy.
 
 ### 3. Vercel próprio
 

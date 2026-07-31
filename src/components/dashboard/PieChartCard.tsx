@@ -1,5 +1,6 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import ChartDataSummary from "./ChartDataSummary";
+import ChartEmptyState from "./ChartEmptyState";
 
 interface PieChartCardProps {
   title: string;
@@ -16,33 +17,39 @@ const PieChartCard = ({ title, data }: PieChartCardProps) => {
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm">
       <h3 className="text-base font-semibold text-foreground mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" paddingAngle={2}>
-            {data.map((entry, i) => (
-              <Cell key={i} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "0.5rem",
-              fontSize: 12,
-            }}
+      {data.length === 0 ? (
+        <ChartEmptyState height={300} />
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" paddingAngle={2}>
+                {data.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "0.5rem",
+                  fontSize: 12,
+                }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: 12 }}
+                formatter={(value) => <span className="text-muted-foreground">{value}</span>}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <ChartDataSummary
+            items={data.map((d) => {
+              const pct = total > 0 ? ((d.value / total) * 100).toFixed(1).replace(".", ",") + "%" : "—";
+              return { name: d.name, value: `${fmt(d.value)} (${pct})`, color: d.fill };
+            })}
           />
-          <Legend
-            wrapperStyle={{ fontSize: 12 }}
-            formatter={(value) => <span className="text-muted-foreground">{value}</span>}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <ChartDataSummary
-        items={data.map((d) => {
-          const pct = total > 0 ? ((d.value / total) * 100).toFixed(1).replace(".", ",") + "%" : "—";
-          return { name: d.name, value: `${fmt(d.value)} (${pct})`, color: d.fill };
-        })}
-      />
+        </>
+      )}
     </div>
   );
 };

@@ -28,9 +28,18 @@
 //                                   CRON_SECRET automaticamente se configurado)
 
 import { createClient } from "@supabase/supabase-js";
+import { getCol, readInt, readFloat, parseBRL, type SheetRow } from "../shared/sheetParsing";
 
-interface SheetRow {
-  [header: string]: string;
+// Shape mínimo do request/response da Vercel que este handler usa — evita
+// depender do pacote @vercel/node só para os tipos.
+interface VercelLikeRequest {
+  method?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}
+
+interface VercelLikeResponse {
+  status(code: number): VercelLikeResponse;
+  json(body: unknown): void;
 }
 
 function parseCsv(text: string): SheetRow[] {
@@ -71,24 +80,6 @@ function parseCsv(text: string): SheetRow[] {
   });
 }
 
-function getCol(row: SheetRow, ...names: string[]): string {
-  for (const n of names) {
-    if (row[n] !== undefined && row[n] !== "") return row[n];
-  }
-  const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-  const found = Object.keys(row).find((k) => names.some((n) => normalize(k) === normalize(n)));
-  return found ? row[found] : "";
-}
-function readInt(row: SheetRow, ...names: string[]): number {
-  return parseInt(getCol(row, ...names)) || 0;
-}
-function readFloat(row: SheetRow, ...names: string[]): number {
-  return parseFloat(getCol(row, ...names).replace(",", ".")) || 0;
-}
-function parseBRL(value: string): number {
-  return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
-}
-
 async function fetchSheetCsv(sheetId: string, gid: string): Promise<SheetRow[]> {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
   const res = await fetch(url);
@@ -102,7 +93,7 @@ async function fetchSheetCsv(sheetId: string, gid: string): Promise<SheetRow[]> 
   return parseCsv(text);
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: VercelLikeRequest, res: VercelLikeResponse) {
   if (req.method !== "POST" && req.method !== "GET") {
     res.status(405).json({ ok: false, error: "Método não permitido" });
     return;
@@ -215,7 +206,8 @@ export default async function handler(req: any, res: any) {
     }
 
     res.status(200).json({ ok: true, counts });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: String(err?.message ?? err) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: message });
   }
 }

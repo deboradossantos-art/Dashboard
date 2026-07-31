@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import ChartDataSummary from "./ChartDataSummary";
+import ChartEmptyState from "./ChartEmptyState";
 
 interface Series {
   key: string;
@@ -69,43 +70,49 @@ const GroupedBarChart = ({ title, data, xKey, series, valueFormatter = defaultFm
           </button>
         )}
       </div>
-      <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={visibleData} layout="vertical" margin={{ top: 8, right: 48, bottom: 8, left: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis
-            type="number"
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 13 }}
-            tickFormatter={(v) => (typeof v === "number" && Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))}
-          />
-          <YAxis
-            dataKey={xKey}
-            type="category"
-            tick={{ fill: "hsl(var(--foreground))", fontSize: 14, fontWeight: 600 }}
-            width={110}
-          />
-          <Tooltip
-            formatter={(v: number | string) => valueFormatter(Number(v))}
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "0.5rem",
-              fontSize: 13,
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: 13 }} formatter={(v) => <span className="text-muted-foreground">{v}</span>} />
-          {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[0, 4, 4, 0]} barSize={22}>
-              <LabelList
-                dataKey={s.key}
-                position="right"
-                formatter={(v: number) => (v ? valueFormatter(Number(v)) : "")}
-                style={{ fill: "hsl(var(--foreground))", fontSize: 13, fontWeight: 600 }}
+      {data.length === 0 ? (
+        <ChartEmptyState />
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart data={visibleData} layout="vertical" margin={{ top: 8, right: 48, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 13 }}
+                tickFormatter={(v) => (typeof v === "number" && Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))}
               />
-            </Bar>
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-      <ChartDataSummary items={summaryItems} />
+              <YAxis
+                dataKey={xKey}
+                type="category"
+                tick={{ fill: "hsl(var(--foreground))", fontSize: 14, fontWeight: 600 }}
+                width={110}
+              />
+              <Tooltip
+                formatter={(v: number | string) => valueFormatter(Number(v))}
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "0.5rem",
+                  fontSize: 13,
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 13 }} formatter={(v) => <span className="text-muted-foreground">{v}</span>} />
+              {series.map((s) => (
+                <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[0, 4, 4, 0]} barSize={22}>
+                  <LabelList
+                    dataKey={s.key}
+                    position="right"
+                    formatter={(v: number) => (v ? valueFormatter(Number(v)) : "")}
+                    style={{ fill: "hsl(var(--foreground))", fontSize: 13, fontWeight: 600 }}
+                  />
+                </Bar>
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+          <ChartDataSummary items={summaryItems} />
+        </>
+      )}
     </div>
   );
 };

@@ -1,349 +1,35 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, ArrowLeft, Calendar, TrendingUp, Users2, RefreshCw, MessageSquare, Save, DollarSign, BarChart2, ChevronDown, ChevronUp, Plane, Trash2, Landmark, SlidersHorizontal, LineChart, Workflow } from "lucide-react";
-import * as XLSX from "xlsx";
+import { Upload, FileSpreadsheet, CheckCircle2, ArrowLeft, Calendar, TrendingUp, Users2, RefreshCw, MessageSquare, DollarSign, BarChart2, Plane, Trash2, Landmark, SlidersHorizontal, LineChart, Workflow } from "lucide-react";
 import { Link } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/PasswordGate";
 import { logAudit } from "@/lib/useAudit";
+import { friendlyErrorMessage } from "@/lib/errors";
 import { CANAIS_ORIGEM } from "@/data/strategicData";
-
-type Status = "idle" | "loading" | "success" | "error";
-
-interface MonthlyReport {
-  mes: string;
-  receita_relacionamento: number;
-  receita_real: number;
-  receita_prevista_real: number;
-  cadastros_ativos: number;
-  updated_at: string;
-}
-
-// Lê arquivo .xlsx binário real (usando SheetJS) e retorna no mesmo formato do parseXlsHtml
-async function parseXlsxBinary(file: File): Promise<{ headers: string[]; data: Record<string, string>[] }> {
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-
-  if (rows.length === 0) return { headers: [], data: [] };
-  const headers = rows[0].map((h) => String(h ?? "").trim());
-  const data = rows.slice(1).map((row) => {
-    const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = String(row[i] ?? "").trim(); });
-    return obj;
-  });
-  return { headers, data };
-}
-
-// Detecta se o arquivo é .xlsx binário real ou HTML disfarçado de .xls (relatórios do Salesforce)
-async function parseAnySpreadsheet(file: File): Promise<{ headers: string[]; data: Record<string, string>[] }> {
-  const buffer = await file.slice(0, 4).arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  // Arquivos .xlsx reais começam com "PK" (assinatura ZIP)
-  const isRealXlsx = bytes[0] === 0x50 && bytes[1] === 0x4b;
-  if (isRealXlsx) {
-    return parseXlsxBinary(file);
-  }
-  // Relatórios do Salesforce (.xls que na verdade são HTML) vêm em ISO-8859-1 (Latin1).
-  // Ler com file.text() assume UTF-8 e corrompe acentos (ç, ã, é etc). Decodificamos manualmente.
-  const fullBuffer = await file.arrayBuffer();
-  const decoder = new TextDecoder("iso-8859-1");
-  const text = decoder.decode(fullBuffer);
-  return parseXlsHtml(text);
-}
-
-function parseXlsHtml(content: string) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, "text/html");
-  const rows = doc.querySelectorAll("tr");
-  const headers: string[] = [];
-  const data: Record<string, string>[] = [];
-  rows.forEach((row, i) => {
-    const cells = row.querySelectorAll("th, td");
-    const values = Array.from(cells).map((c) => c.textContent?.trim() ?? "");
-    if (i === 0) headers.push(...values);
-    else {
-      const obj: Record<string, string> = {};
-      values.forEach((v, j) => { obj[headers[j]] = v; });
-      data.push(obj);
-    }
-  });
-  return { headers, data };
-}
-
-function parseBRL(value: string): number {
-  return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
-}
-
-// Leitura tolerante de colunas de planilha: aceita variações de acentuação/caixa
-// no cabeçalho (ex: "Mês", "mes", "MES" apontam para o mesmo campo).
-function getCol(row: Record<string, string>, ...names: string[]): string {
-  for (const n of names) {
-    if (row[n] !== undefined && row[n] !== "") return row[n];
-  }
-  const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-  const found = Object.keys(row).find((k) => names.some((n) => normalize(k) === normalize(n)));
-  return found ? row[found] : "";
-}
-function readInt(row: Record<string, string>, ...names: string[]): number {
-  return parseInt(getCol(row, ...names)) || 0;
-}
-function readFloat(row: Record<string, string>, ...names: string[]): number {
-  return parseFloat(getCol(row, ...names).replace(",", ".")) || 0;
-}
-
-function getMesFromDate(dateStr: string): string {
-  const parts = dateStr.split("/");
-  if (parts.length === 3) return `${parts[2]}-${parts[1]}`;
-  return "";
-}
-
-function processOportunidades(data: Record<string, string>[]) {
-  const byMes: Record<string, { total: number; real: number }> = {};
-  data.forEach((row) => {
-    const valor = parseBRL(row["Valor"] ?? "0");
-    const atividade = row["Atividade"] ?? "";
-    const mes = getMesFromDate(row["Data de fechamento"] ?? "");
-    if (!mes) return;
-    if (!byMes[mes]) byMes[mes] = { total: 0, real: 0 };
-    byMes[mes].total += valor;
-    if (atividade === "Ativo") byMes[mes].real += valor;
-  });
-  return byMes;
-}
-
-function processCadastros(data: Record<string, string>[]) {
-  let ativos = 0;
-  let receitaPrevista = 0;
-  data.forEach((row) => {
-    if (row["Atividade"] === "Ativo") {
-      ativos++;
-      receitaPrevista += parseBRL(row["Valor Contribuição"] ?? row["Valor Contribuicao"] ?? "0");
-    }
-  });
-  return { ativos, receitaPrevista };
-}
-
-// Classifica uma string de modalidade em Pix, Boleto ou Cartão de Crédito (ou null se não mapeada)
-function classificarModalidade(raw: string): "pix" | "boleto" | "cartao" | null {
-  const v = raw.trim().toLowerCase();
-  if (!v) return null;
-  if (v.includes("pix")) return "pix";
-  if (v.includes("boleto") || v.includes("carnê") || v.includes("carne")) return "boleto";
-  if (v.includes("cart") || v.includes("crédito") || v.includes("credito")) return "cartao";
-  return null; // transferência, débito, doação única, doação não monetária etc. ficam fora
-}
-
-// Processar planilha de desfalque: 1 linha por cadastro, colunas "Modalidade" (declarada) e "Pagantes" (quem pagou e por qual modalidade)
-function processDesfalque(data: Record<string, string>[]) {
-  const counts = {
-    pix_ativos: 0, pix_pagantes: 0,
-    boleto_ativos: 0, boleto_pagantes: 0,
-    cartao_ativos: 0, cartao_pagantes: 0,
-  };
-
-  data.forEach((row) => {
-    const modalidadeRaw = row["Modalidade"] ?? row["modalidade"] ?? "";
-    const pagantesRaw = row["Pagantes"] ?? row["pagantes"] ?? "";
-
-    const modalidadeTipo = classificarModalidade(modalidadeRaw);
-    if (modalidadeTipo === "pix") counts.pix_ativos++;
-    else if (modalidadeTipo === "boleto") counts.boleto_ativos++;
-    else if (modalidadeTipo === "cartao") counts.cartao_ativos++;
-
-    // "Pagantes" só conta se a linha realmente tiver um valor preenchido (indicando que pagou)
-    if (pagantesRaw.trim()) {
-      const pagouTipo = classificarModalidade(pagantesRaw);
-      if (pagouTipo === "pix") counts.pix_pagantes++;
-      else if (pagouTipo === "boleto") counts.boleto_pagantes++;
-      else if (pagouTipo === "cartao") counts.cartao_pagantes++;
-    }
-  });
-
-  return {
-    pix_ativos: String(counts.pix_ativos),
-    pix_pagantes: String(counts.pix_pagantes),
-    boleto_ativos: String(counts.boleto_ativos),
-    boleto_pagantes: String(counts.boleto_pagantes),
-    cartao_ativos: String(counts.cartao_ativos),
-    cartao_pagantes: String(counts.cartao_pagantes),
-  };
-}
-
-function fmtBRL(v: number) {
-  return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtMes(mes: string) {
-  const [ano, m] = mes.split("-");
-  const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  return `${meses[parseInt(m) - 1]} ${ano}`;
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-function calcPct(num: string, den: string): string {
-  const n = parseFloat(num);
-  const d = parseFloat(den);
-  if (!n || !d || d === 0) return "—";
-  return ((n / d) * 100).toFixed(1) + "%";
-}
-
-function getMesLabel(mes: string): string {
-  const [ano, m] = mes.split("-");
-  const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  return `${meses[parseInt(m) - 1]} ${ano}`;
-}
-
-function getMesesDisponiveis(): { id: string; label: string }[] {
-  const meses = [];
-  const now = new Date();
-  for (let i = 0; i < 24; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    meses.push({ id, label: getMesLabel(id) });
-  }
-  return meses;
-}
-
-const MESES_DISPONIVEIS = getMesesDisponiveis();
-const MES_ATUAL = MESES_DISPONIVEIS[0].id;
-
-const emptyChatter = () => ({ mes: MES_ATUAL, total_mensagens: "", mensagens_raqueline: "", mensagens_leticia: "", mensagens_aline: "", mensagens_evila: "", boletos_leticia: "" });
-const emptyFinancial = () => ({ mes: MES_ATUAL, cora: "", stone: "", asaas: "", receita_prevista: "" });
-const emptyEmployee = (func: string) => ({ mes: MES_ATUAL, funcionaria: func, mensagens_chatter: "", mensagens_manychat: "", tempo_resposta: "", conversao_atendidas: "", valor_reativado: "", ligacoes_realizadas: "", ligacoes_convertidas: "", ligacoes_aniversariantes: "", caixa_postal: "", bloqueados: "", invalidos: "", boletos_enviados: "", boletos_pagos: "" });
-const emptyDesfalque = () => ({ mes: MES_ATUAL, pix_ativos: "", pix_pagantes: "", boleto_ativos: "", boleto_pagantes: "", cartao_ativos: "", cartao_pagantes: "" });
-
-// ===== Painel de Operação e Arrecadação (tabelas novas) =====
-const emptyStrategic = () => ({ mes: MES_ATUAL, arrecadacao_ativa: "", doadores_ativos: "", doadores_base: "", doadores_cartao_recorrente: "", doacoes_identificadas: "", doacoes_total: "" });
-const emptyChannelModality = () => Object.fromEntries(CANAIS_ORIGEM.map((c) => [c, { cartao_credito: "", cartao_recorrencia: "", boleto: "", pix: "" }])) as Record<string, { cartao_credito: string; cartao_recorrencia: string; boleto: string; pix: string }>;
-const emptyDonorStatus = () => ({ mes: MES_ATUAL, pct_ativos: "", pct_inativos: "", pct_cancelados: "" });
-const emptyDonorFunnel = () => ({ mes: MES_ATUAL, cadastro_inicial: "", contato_realizado: "", primeiro_pagamento: "", doador_ativo: "" });
-
-const Section = ({ title, icon, color, children, defaultOpen = true }: { title: string; icon: React.ReactNode; color: string; children: React.ReactNode; defaultOpen?: boolean }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="glass-card overflow-hidden">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/20 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className={`grid h-9 w-9 place-items-center rounded-lg ${color}`}>{icon}</div>
-          <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        </div>
-        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </button>
-      {open && <div className="px-6 pb-6 space-y-4">{children}</div>}
-    </div>
-  );
-};
-
-const MesSelect = ({ value, onChange, onLoadData }: { value: string; onChange: (v: string) => void; onLoadData?: (mes: string) => void }) => (
-  <div className="space-y-1.5">
-    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mês de referência</label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e.target.value);
-        onLoadData?.(e.target.value);
-      }}
-      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-    >
-      {MESES_DISPONIVEIS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-    </select>
-  </div>
-);
-
-const Field = ({ label, value, onChange, prefix, suffix, hint, money }: { label: string; value: string; onChange: (v: string) => void; prefix?: string; suffix?: string; hint?: string; money?: boolean }) => (
-  <div className="space-y-1.5">
-    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
-    <div className="relative flex items-center">
-      {prefix && <span className="absolute left-3 text-sm text-muted-foreground">{prefix}</span>}
-      {money ? (
-        <input
-          type="text"
-          inputMode="decimal"
-          placeholder="0,00"
-          value={value}
-          onChange={(e) => {
-            // Aceita apenas dígitos, ponto (milhar) e vírgula (decimal) — formato BR,
-            // já que <input type="number"> força ponto como separador decimal e
-            // transformava "21.084" em 21,084 em vez de R$ 21.084.
-            const cleaned = e.target.value.replace(/[^0-9.,]/g, "");
-            onChange(cleaned);
-          }}
-          className={`w-full rounded-lg border border-border bg-background py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors ${prefix ? "pl-8 pr-3" : suffix ? "pl-3 pr-10" : "px-3"}`}
-        />
-      ) : (
-        <input
-          type="number"
-          min="0"
-          step="any"
-          placeholder="0"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded-lg border border-border bg-background py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors ${prefix ? "pl-8 pr-3" : suffix ? "pl-3 pr-10" : "px-3"}`}
-        />
-      )}
-      {suffix && <span className="absolute right-3 text-sm text-muted-foreground">{suffix}</span>}
-    </div>
-    {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-  </div>
-);
-
-const AutoField = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
-  <div className="space-y-1.5">
-    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
-    <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-2.5 text-sm font-bold text-success">{value}</div>
-    {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-  </div>
-);
-
-const SaveBtn = ({ status, onClick, label = "Salvar" }: { status: Status; onClick: () => void; label?: string }) => (
-  <Button onClick={onClick} disabled={status === "loading"} className="w-full gap-2 h-11" variant={status === "success" ? "outline" : "default"}>
-    {status === "loading" ? <><RefreshCw className="h-4 w-4 animate-spin" /> Salvando...</> :
-     status === "success" ? <><CheckCircle2 className="h-4 w-4 text-success" /> Salvo!</> :
-     <><Save className="h-4 w-4" /> {label}</>}
-  </Button>
-);
-
-/** Bloco de upload de planilha reutilizado nas 4 seções novas do Painel de Entrada. */
-const SheetUploadBox = ({ file, setFile, onProcess, status, columnsHint }: {
-  file: File | null;
-  setFile: (f: File | null) => void;
-  onProcess: () => void;
-  status: Status;
-  /** Ex.: "Mes, Arrecadacao Ativa, Doadores Ativos, ..." */
-  columnsHint: string;
-}) => (
-  <div className="rounded-xl border-2 border-dashed border-border p-4 space-y-3">
-    <div className="flex items-center gap-2">
-      <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-      <p className="text-xs font-semibold text-foreground">Preencher via planilha (.xlsx)</p>
-    </div>
-    <p className="text-[11px] text-muted-foreground">
-      Uma linha por mês, colunas: <strong>{columnsHint}</strong>. Pode ter vários meses na mesma planilha.
-    </p>
-    <div className="flex flex-col sm:flex-row gap-2">
-      <label className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors text-sm ${file ? "border-primary/50 bg-primary/5 text-primary" : "border-border hover:border-primary/40 text-muted-foreground"}`}>
-        <Upload className="h-4 w-4" />
-        <span className="truncate">{file ? file.name : "Selecionar planilha (.xlsx)"}</span>
-        <input type="file" accept=".xls,.xlsx,.html,.htm" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      </label>
-      <Button onClick={onProcess} disabled={!file || status === "loading"} className="gap-2 h-auto sm:h-auto px-4">
-        {status === "loading" ? <RefreshCw className="h-4 w-4 animate-spin" /> :
-         status === "success" ? <CheckCircle2 className="h-4 w-4" /> :
-         <FileSpreadsheet className="h-4 w-4" />}
-        Processar
-      </Button>
-    </div>
-  </div>
-);
+import { getCol, readInt, readFloat, parseBRL } from "../../shared/sheetParsing";
+import type { Status, ChannelModalityRow, EmployeeReportRow, DesfalqueRow, MonthlyReport } from "./upload/types";
+import { parseAnySpreadsheet, processOportunidades, processCadastros, processDesfalque } from "./upload/spreadsheetParsing";
+import {
+  fmtBRL, fmtMes, fmtDate, calcPct, MES_ATUAL,
+  emptyChatter, emptyFinancial, emptyEmployee, emptyDesfalque,
+  emptyStrategic, emptyChannelModality, emptyDonorStatus, emptyDonorFunnel,
+} from "./upload/formHelpers";
+import { Section, MesSelect, Field, AutoField, SaveBtn, SheetUploadBox } from "./upload/components";
 
 export default function UploadPage() {
   // Antes essa página só liberava pro e-mail da Débora — restrição removida
@@ -429,7 +115,7 @@ export default function UploadPage() {
         supabase.from("donor_status_reports").select("*").eq("mes", mes).maybeSingle(),
         supabase.from("donor_funnel_reports").select("*").eq("mes", mes).maybeSingle(),
         supabase.from("channel_modality_reports").select("*").eq("mes", mes),
-      ]).catch(() => [{ data: null }, { data: null }, { data: null }, { data: null }] as any[]);
+      ]).catch(() => [{ data: null }, { data: null }, { data: null }, { data: null }] as { data: unknown }[]);
 
       const strategicData = strategicRes?.data;
       if (strategicData) {
@@ -456,7 +142,7 @@ export default function UploadPage() {
         ? { mes, cadastro_inicial: String(donorFunnelData.cadastro_inicial ?? ""), contato_realizado: String(donorFunnelData.contato_realizado ?? ""), primeiro_pagamento: String(donorFunnelData.primeiro_pagamento ?? ""), doador_ativo: String(donorFunnelData.doador_ativo ?? "") }
         : { ...emptyDonorFunnel(), mes });
 
-      const channelRows: any[] = channelModalityRes?.data ?? [];
+      const channelRows = (channelModalityRes?.data ?? []) as ChannelModalityRow[];
       const nextChannelModality = emptyChannelModality();
       channelRows.forEach((row) => {
         if (nextChannelModality[row.canal]) {
@@ -498,7 +184,7 @@ export default function UploadPage() {
       }
 
       const loadEmployee = (funcId: string, setter: (v: ReturnType<typeof emptyEmployee>) => void) => {
-        const d = employeeData?.find((e: any) => e.funcionaria === funcId);
+        const d = (employeeData as EmployeeReportRow[] | null)?.find((e) => e.funcionaria === funcId);
         if (d) {
           setter({
             mes,
@@ -526,10 +212,11 @@ export default function UploadPage() {
       loadEmployee("aline", setAline);
       loadEmployee("evila", setEvila);
 
-      if (desfalqueData && desfalqueData.length > 0) {
-        const pix = desfalqueData.find((d: any) => d.modalidade === "Pix");
-        const boleto = desfalqueData.find((d: any) => d.modalidade === "Boleto");
-        const cartao = desfalqueData.find((d: any) => d.modalidade === "Cartão de Crédito");
+      const desfalqueRows = desfalqueData as DesfalqueRow[] | null;
+      if (desfalqueRows && desfalqueRows.length > 0) {
+        const pix = desfalqueRows.find((d) => d.modalidade === "Pix");
+        const boleto = desfalqueRows.find((d) => d.modalidade === "Boleto");
+        const cartao = desfalqueRows.find((d) => d.modalidade === "Cartão de Crédito");
         setDesfalque({
           mes,
           pix_ativos: String(pix?.total_ativos || ""),
@@ -591,7 +278,7 @@ export default function UploadPage() {
   const handleDeleteFerias = async (id: string) => {
     const { error } = await supabase.from("employee_vacations").delete().eq("id", id);
     if (error) {
-      toast({ title: "Erro ao remover", description: String(error.message), variant: "destructive" });
+      toast({ title: "Erro ao remover", description: friendlyErrorMessage(error), variant: "destructive" });
       return;
     }
     toast({ title: "Período removido" });
@@ -607,7 +294,7 @@ export default function UploadPage() {
     } catch (err) {
       console.error(err);
       setStatus("error");
-      toast({ title: "Erro ao salvar", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -626,7 +313,14 @@ export default function UploadPage() {
         receitaPrevista = resultCadastros.receitaPrevista;
       }
       for (const [mes, valores] of Object.entries(byMes)) {
-        const payload: any = {
+        const payload: {
+          mes: string;
+          receita_relacionamento: number;
+          receita_real: number;
+          updated_at: string;
+          cadastros_ativos?: number;
+          receita_prevista_real?: number;
+        } = {
           mes,
           receita_relacionamento: valores.total,
           receita_real: valores.real,
@@ -646,7 +340,7 @@ export default function UploadPage() {
       setTimeout(() => setUploadStatus("idle"), 3000);
     } catch (err) {
       setUploadStatus("error");
-      toast({ title: "Erro ao processar", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao processar", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -819,7 +513,7 @@ export default function UploadPage() {
       setTimeout(() => setStrategicUploadStatus("idle"), 3000);
     } catch (err) {
       setStrategicUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -854,7 +548,7 @@ export default function UploadPage() {
       setTimeout(() => setChannelModalityUploadStatus("idle"), 3000);
     } catch (err) {
       setChannelModalityUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -886,7 +580,7 @@ export default function UploadPage() {
       setTimeout(() => setDonorStatusUploadStatus("idle"), 3000);
     } catch (err) {
       setDonorStatusUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -919,7 +613,7 @@ export default function UploadPage() {
       setTimeout(() => setDonorFunnelUploadStatus("idle"), 3000);
     } catch (err) {
       setDonorFunnelUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -946,7 +640,7 @@ export default function UploadPage() {
       setTimeout(() => setSyncSheetsStatus("idle"), 3000);
     } catch (err) {
       setSyncSheetsStatus("error");
-      toast({ title: "Erro ao sincronizar com o Google Sheets", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao sincronizar com o Google Sheets", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -963,7 +657,7 @@ export default function UploadPage() {
       setTimeout(() => setDesfalqueUploadStatus("idle"), 3000);
     } catch (err) {
       setDesfalqueUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: String(err), variant: "destructive" });
+      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -1330,9 +1024,26 @@ export default function UploadPage() {
                       <p className="text-sm font-semibold text-foreground">{labels[v.funcionaria] ?? v.funcionaria}</p>
                       <p className="text-xs text-muted-foreground">{fmtDateBR(v.data_inicio)} até {fmtDateBR(v.data_fim)}{v.observacao ? ` · ${v.observacao}` : ""}</p>
                     </div>
-                    <button onClick={() => handleDeleteFerias(v.id)} className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remover período de férias?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {labels[v.funcionaria] ?? v.funcionaria}: {fmtDateBR(v.data_inicio)} até {fmtDateBR(v.data_fim)}.
+                            Essa ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteFerias(v.id)}>Remover</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 );
               })}

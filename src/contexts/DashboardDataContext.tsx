@@ -113,22 +113,20 @@ const normalizeOverrides = (data: DashboardOverrides): DashboardOverrides => ({
 });
 
 // Local storage functions
-const loadFromStorage = (key: string, defaultValue: any) => {
+const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
   try {
     const stored = localStorage.getItem(key);
-    console.log(`[Storage] Loading ${key}:`, stored ? JSON.parse(stored) : defaultValue);
     const parsed = stored ? JSON.parse(stored) : defaultValue;
-    return key === STORAGE_KEY_OVERRIDES ? normalizeOverrides(parsed) : parsed;
+    return key === STORAGE_KEY_OVERRIDES ? (normalizeOverrides(parsed) as T) : parsed;
   } catch (error) {
     console.error("Erro ao carregar do localStorage:", error);
     return defaultValue;
   }
 };
 
-const saveToStorage = (key: string, value: any) => {
+const saveToStorage = <T,>(key: string, value: T) => {
   try {
-    console.log(`[Storage] Saving ${key}:`, value);
-    const normalizedValue = key === STORAGE_KEY_OVERRIDES ? normalizeOverrides(value) : value;
+    const normalizedValue = key === STORAGE_KEY_OVERRIDES ? normalizeOverrides(value as DashboardOverrides) : value;
     localStorage.setItem(key, JSON.stringify(normalizedValue));
     // Dispatch custom event for same-tab updates
     window.dispatchEvent(new CustomEvent("dashboardUpdate", { detail: { key, value: normalizedValue } }));
@@ -158,7 +156,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
   const loadOverridesFromSupabase = useCallback(async () => {
     const userId = user?.id;
-    const localOverrides = loadFromStorage(STORAGE_KEY_OVERRIDES, {});
+    const localOverrides = loadFromStorage<DashboardOverrides>(STORAGE_KEY_OVERRIDES, {});
     if (isDemoUser(userId)) return localOverrides;
 
     try {
@@ -198,7 +196,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   const loadEmployeeOverridesFromSupabase = useCallback(async () => {
-    const localEmployeeOverrides = loadFromStorage(STORAGE_KEY_EMP_OVERRIDES, {});
+    const localEmployeeOverrides = loadFromStorage<EmployeeOverrides>(STORAGE_KEY_EMP_OVERRIDES, {});
     if (isDemoUser(user?.id)) return localEmployeeOverrides;
 
     try {
@@ -249,27 +247,22 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
   // Initial load and setup listeners
   useEffect(() => {
-    console.log("[Context] Mounting DashboardDataProvider para usuário:", user?.id);
-
     let cancelled = false;
 
     // Se já está carregando, não fazer novamente
     if (isLoadingRef.current) {
-      console.log("[Context] Já está carregando, pulando...");
       return;
     }
 
     setLoading(true);
     isLoadingRef.current = true;
 
-    const localOverrides = loadFromStorage(STORAGE_KEY_OVERRIDES, {});
+    const localOverrides = loadFromStorage<DashboardOverrides>(STORAGE_KEY_OVERRIDES, {});
     applyOverrides(localOverrides);
-    applyEmployeeOverrides(loadFromStorage(STORAGE_KEY_EMP_OVERRIDES, {}));
+    applyEmployeeOverrides(loadFromStorage<EmployeeOverrides>(STORAGE_KEY_EMP_OVERRIDES, {}));
 
     // Apenas carrega do Supabase se há usuário autenticado
     if (user?.id && !isDemoUser(user.id)) {
-      console.log("[Context] Usuário autenticado, carregando do Supabase...");
-      
       const doLoad = async () => {
         try {
           const [savedOverrides, savedEmployeeOverrides] = await Promise.all([
@@ -278,14 +271,12 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
           ]);
 
           if (!cancelled) {
-            console.log("[Context] Dados carregados com sucesso");
             applyOverrides(savedOverrides);
             applyEmployeeOverrides(savedEmployeeOverrides);
           }
         } catch (error) {
           console.error("[Context] Erro ao carregar do Supabase:", error);
           if (!cancelled) {
-            console.log("[Context] Usando dados locais como fallback");
             applyOverrides(localOverrides);
           }
         } finally {
@@ -298,7 +289,6 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
       doLoad();
     } else {
-      console.log("[Context] Usuário demo ou não autenticado, usando apenas localStorage");
       setLoading(false);
       isLoadingRef.current = false;
     }
@@ -306,8 +296,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     // Listen for custom event from this tab
     const handleDashboardUpdate = (e: Event) => {
       const event = e as CustomEvent;
-      console.log("[Event] Received dashboardUpdate:", event.detail.key);
-      
+
       if (event.detail.key === STORAGE_KEY_OVERRIDES) {
         applyOverrides(event.detail.value);
       }
@@ -318,8 +307,6 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
     // Listen for storage changes from other tabs
     const handleStorageChange = (e: StorageEvent) => {
-      console.log("[Storage Event] Storage changed:", e.key);
-      
       if (e.key === STORAGE_KEY_OVERRIDES) {
         const newData = e.newValue ? normalizeOverrides(JSON.parse(e.newValue)) : {};
         applyOverrides(newData);
@@ -342,32 +329,25 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   }, [user?.id, applyEmployeeOverrides, applyOverrides, loadEmployeeOverridesFromSupabase, loadOverridesFromSupabase]);
 
   const updateOverrides = useCallback(async (data: Partial<DashboardOverrides>) => {
-    console.log("[updateOverrides] Iniciando salvamento com dados:", data);
     const next = normalizeOverrides({ ...overridesRef.current, ...data });
-    console.log("[updateOverrides] Dados normalizados:", next);
-    
+
     applyOverrides(next);
     saveToStorage(STORAGE_KEY_OVERRIDES, next);
-    
+
     const userId = user?.id;
     if (isDemoUser(userId)) {
-      console.log("[updateOverrides] Usuário demo - dados salvos apenas localmente");
       return;
     }
-    
+
     try {
-      console.log("[updateOverrides] Tentando sincronizar com Supabase...");
       await saveOverridesToSupabase(next);
-      console.log("[updateOverrides] ✓ Sucesso ao sincronizar com Supabase");
     } catch (error) {
-      console.error("[updateOverrides] ✗ ERRO ao sincronizar com Supabase:", error);
-      console.warn("[updateOverrides] Mantendo dados salvos localmente após falha no Supabase");
+      console.error("[updateOverrides] Erro ao sincronizar com Supabase (dados mantidos localmente):", error);
       throw error;
     }
   }, [applyOverrides, saveOverridesToSupabase, user?.id]);
 
   const updateEmployeeOverrides = useCallback(async (funcionaria: string, mes: string, data: EmployeeOverride) => {
-    console.log(`[updateEmployeeOverrides] Salvando dados para ${funcionaria} - ${mes}:`, data);
     const next = {
       ...employeeOverridesRef.current,
       [funcionaria]: {
@@ -377,25 +357,20 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     };
     applyEmployeeOverrides(next);
     saveToStorage(STORAGE_KEY_EMP_OVERRIDES, next);
-    
+
     if (isDemoUser(user?.id)) {
-      console.log(`[updateEmployeeOverrides] Usuário demo - dados salvos apenas localmente`);
       return;
     }
-    
+
     try {
-      console.log(`[updateEmployeeOverrides] Sincronizando ${funcionaria} com Supabase...`);
       await saveEmployeeOverrideToSupabase(funcionaria, mes, data);
-      console.log(`[updateEmployeeOverrides] ✓ Sucesso ao sincronizar ${funcionaria}`);
     } catch (error) {
-      console.error(`[updateEmployeeOverrides] ✗ ERRO ao sincronizar ${funcionaria}:`, error);
-      console.warn(`[updateEmployeeOverrides] Mantendo dados de ${funcionaria} salvos localmente após falha no Supabase`);
+      console.error(`[updateEmployeeOverrides] Erro ao sincronizar ${funcionaria} (dados mantidos localmente):`, error);
       throw error;
     }
   }, [applyEmployeeOverrides, saveEmployeeOverrideToSupabase, user?.id]);
 
   const resetOverrides = useCallback(async () => {
-    console.log("[resetOverrides] Iniciando reset de todas as configurações");
     applyOverrides({});
     applyEmployeeOverrides({});
     localStorage.removeItem(STORAGE_KEY_OVERRIDES);
@@ -404,16 +379,14 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     const userId = user?.id;
     if (!isDemoUser(userId)) {
       try {
-        console.log("[resetOverrides] Deletando overrides do Supabase...");
         const { error } = await supabase
           .from("dashboard_overrides")
           .delete()
           .eq("user_id", userId);
 
         if (error) throw error;
-        console.log("[resetOverrides] ✓ Sucesso ao deletar do Supabase");
       } catch (error) {
-        console.error("[resetOverrides] ✗ ERRO ao deletar do Supabase:", error);
+        console.error("[resetOverrides] Erro ao deletar do Supabase:", error);
         throw error;
       }
     }
