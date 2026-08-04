@@ -19,7 +19,7 @@ import {
 } from "@/data/strategicData";
 // Fallback específico do histórico da Ser Feliz para meses sem dado no
 // Supabase — ver comentário no topo do arquivo sobre adaptar/zerar num fork.
-import { monthIndex, valuesByMonth } from "@/data/legacyMonthlyFallback";
+import { monthIndex, valuesByMonth as legacyValuesByMonth } from "@/data/legacyMonthlyFallback";
 
 const conversionColors = ["#FDBA74", "#5EAAB8", "#1B7E91", "#0F5C6B", "#2D9CAD", "#F4A833"];
 
@@ -221,8 +221,8 @@ export function useDashboardOverview() {
     return r.mes === `${prevAno}-${String(prevMes).padStart(2, "0")}`;
   }) ?? null;
 
-  const idx = monthIndex[selectedMonth] ?? 0;
-  const prevIdx = idx + 1;
+  const legacyIdx = monthIndex[selectedMonth] ?? 0;
+  const legacyPrevIdx = legacyIdx + 1;
 
   const geral = geralByMonth[selectedMonth] ?? geralByMonth["2026-07"];
   const selectedLabel = valueOrFallback(overrides.periodo, MONTHS.find((m) => m.id === selectedMonth)?.label ?? selectedMonth);
@@ -269,12 +269,12 @@ export function useDashboardOverview() {
   const financialReport = financialReports.find((r) => r.mes === selectedMonth) ?? null;
   // receita_relacionamento é só o que veio do Salesforce/relatórios (Oportunidades) —
   // "Comprovantes" precisa continuar refletindo só isso, sem Cora/Stone/Asaas.
-  const receitaRelacionamentoAtual = supabaseReport?.receita_relacionamento ?? valuesByMonth.receitaRel[idx];
+  const receitaRelacionamentoAtual = supabaseReport?.receita_relacionamento ?? legacyValuesByMonth.receitaRel[legacyIdx];
   // O headline "Receita de Jun" é o total do mês: Salesforce + o que entrou em Cora/Stone/Asaas.
   const headlineRevenueAtual = receitaRelacionamentoAtual + finExtra(financialReport);
   // "Meta Cumprida"/"Receita Real YTD" também contam Cora/Stone/Asaas como realizado.
-  const receitaRealAtual = (supabaseReport?.receita_real ?? valuesByMonth.receitaReal[idx]) + finExtra(financialReport);
-  const cadastrosAtivosNum = presente(supabaseReport?.cadastros_ativos) ?? valuesByMonth.cadastros[idx];
+  const receitaRealAtual = (supabaseReport?.receita_real ?? legacyValuesByMonth.receitaReal[legacyIdx]) + finExtra(financialReport);
+  const cadastrosAtivosNum = presente(supabaseReport?.cadastros_ativos) ?? legacyValuesByMonth.cadastros[legacyIdx];
 
   const financialRevenue = valueOrFallback(overrides.financialRevenue, fmtBRL(receitaRelacionamentoAtual));
   const headlineRevenue = overrides.financialRevenue?.trim() ? overrides.financialRevenue : fmtBRL(headlineRevenueAtual);
@@ -282,7 +282,7 @@ export function useDashboardOverview() {
     ? fmtBRL(supabaseReport.receita_prevista_real)
     : financialReport?.receita_prevista
     ? fmtBRL(financialReport.receita_prevista)
-    : valueOrFallback(overrides.financialGoal, `R$ ${valuesByMonth.receitaPrev[idx].toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`);
+    : valueOrFallback(overrides.financialGoal, `R$ ${legacyValuesByMonth.receitaPrev[legacyIdx].toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`);
   const financialYTD = overrides.financialYTD?.trim() ? overrides.financialYTD : null;
   const financialYTDValue = valueOrFallback(overrides.financialYTDValue, fmtBRL(receitaRealAtual));
   const cadastrosAtivos = cadastrosAtivosNum.toLocaleString("pt-BR");
@@ -304,10 +304,10 @@ export function useDashboardOverview() {
     return r.mes === `${prevAno}-${String(prevMes).padStart(2, "0")}`;
   }) ?? null;
 
-  const receitaPrevistaAtual = supabaseReport?.receita_prevista_real || financialReport?.receita_prevista || (parseDisplayNumber(financialGoal, valuesByMonth.receitaPrev[idx]) ?? valuesByMonth.receitaPrev[idx]);
-  const volumeAtual = presente(chatterReport?.total_mensagens) ?? parseDisplayNumber(kpiCardsData[1]?.value, valuesByMonth.vol[idx]);
-  const tempoRespostaAtual = parseDisplayNumber(kpiCardsData[0]?.value, valuesByMonth.resp[idx]);
-  const csatAtual = parseDisplayNumber(kpiCardsData[2]?.value, valuesByMonth.csat[idx]);
+  const receitaPrevistaAtual = supabaseReport?.receita_prevista_real || financialReport?.receita_prevista || (parseDisplayNumber(financialGoal, legacyValuesByMonth.receitaPrev[legacyIdx]) ?? legacyValuesByMonth.receitaPrev[legacyIdx]);
+  const volumeAtual = presente(chatterReport?.total_mensagens) ?? parseDisplayNumber(kpiCardsData[1]?.value, legacyValuesByMonth.vol[legacyIdx]);
+  const tempoRespostaAtual = parseDisplayNumber(kpiCardsData[0]?.value, legacyValuesByMonth.resp[legacyIdx]);
+  const csatAtual = parseDisplayNumber(kpiCardsData[2]?.value, legacyValuesByMonth.csat[legacyIdx]);
   const progressoManual = parseDisplayNumber(financialYTD ?? undefined, null);
 
   // Desfalque: usa dados reais do Supabase quando existem para o mês selecionado
@@ -331,14 +331,14 @@ export function useDashboardOverview() {
     const prevAno = mes === 1 ? ano - 1 : ano;
     return r.mes === `${prevAno}-${String(prevMes).padStart(2, "0")}`;
   }) ?? null;
-  const prevReceitaRel = prevSupabaseReport?.receita_relacionamento ?? valuesByMonth.receitaRel[prevIdx];
+  const prevReceitaRel = prevSupabaseReport?.receita_relacionamento ?? legacyValuesByMonth.receitaRel[legacyPrevIdx];
   const prevHeadlineRevenue = prevReceitaRel + finExtra(prevFinancialReport);
-  const prevReceitaReal = (prevSupabaseReport?.receita_real ?? valuesByMonth.receitaReal[prevIdx]) + finExtra(prevFinancialReport);
+  const prevReceitaReal = (prevSupabaseReport?.receita_real ?? legacyValuesByMonth.receitaReal[legacyPrevIdx]) + finExtra(prevFinancialReport);
 
-  const prevVolume = presente(prevChatterReport?.total_mensagens) ?? valuesByMonth.vol[prevIdx];
+  const prevVolume = presente(prevChatterReport?.total_mensagens) ?? legacyValuesByMonth.vol[legacyPrevIdx];
   const dVol = pctDelta(volumeAtual, prevVolume ?? null);
-  const dResp = pctDelta(tempoRespostaAtual, valuesByMonth.resp[prevIdx] ?? null);
-  const dCsat = pctDelta(csatAtual, valuesByMonth.csat[prevIdx] ?? null);
+  const dResp = pctDelta(tempoRespostaAtual, legacyValuesByMonth.resp[legacyPrevIdx] ?? null);
+  const dCsat = pctDelta(csatAtual, legacyValuesByMonth.csat[legacyPrevIdx] ?? null);
   const dReceita = pctDelta(receitaRelacionamentoAtual, prevReceitaRel);
   const dHeadline = pctDelta(headlineRevenueAtual, prevHeadlineRevenue);
   const dReal = pctDelta(receitaRealAtual, prevReceitaReal);
@@ -359,9 +359,9 @@ export function useDashboardOverview() {
       const monthDataIndex = monthIndex[month.id] ?? 0;
       const supaRep = reports.find((r) => r.mes === month.id);
       const finRep = financialReports.find((r) => r.mes === month.id);
-      const receitaRel = supaRep?.receita_relacionamento ?? valuesByMonth.receitaRel[monthDataIndex];
-      const receitaPrev = supaRep?.receita_prevista_real || finRep?.receita_prevista || valuesByMonth.receitaPrev[monthDataIndex];
-      const receitaReal = (supaRep?.receita_real ?? valuesByMonth.receitaReal[monthDataIndex]) + finExtra(finRep);
+      const receitaRel = supaRep?.receita_relacionamento ?? legacyValuesByMonth.receitaRel[monthDataIndex];
+      const receitaPrev = supaRep?.receita_prevista_real || finRep?.receita_prevista || legacyValuesByMonth.receitaPrev[monthDataIndex];
+      const receitaReal = (supaRep?.receita_real ?? legacyValuesByMonth.receitaReal[monthDataIndex]) + finExtra(finRep);
       const conversao = receitaPrev && receitaPrev > 0 ? Number((((receitaReal ?? 0) / receitaPrev) * 100).toFixed(1)) : 0;
 
       acc.evolucaoReceita.push({ month: month.label, value: receitaRel ?? 0 });
@@ -453,7 +453,7 @@ export function useDashboardOverview() {
   const kpis: { label: string; value: string; meta: string; icon: any; tone: Tone; delta: number | null; higherIsBetter: boolean; sparkline: number[] }[] = [
     {
       label: kpiCardsData[0]?.label ?? "Tempo Médio de Resposta",
-      value: kpiCardsData[0]?.value ?? (valuesByMonth.resp[idx] !== null ? `${valuesByMonth.resp[idx]} min` : "—"),
+      value: kpiCardsData[0]?.value ?? (legacyValuesByMonth.resp[legacyIdx] !== null ? `${legacyValuesByMonth.resp[legacyIdx]} min` : "—"),
       meta: kpiCardsData[0]?.meta ?? "Meta: 10 min",
       icon: Clock,
       tone: "warning",
@@ -473,7 +473,7 @@ export function useDashboardOverview() {
     },
     {
       label: kpiCardsData[2]?.label ?? "Satisfação (CSAT)",
-      value: kpiCardsData[2]?.value ?? (valuesByMonth.csat[idx] !== null ? String(valuesByMonth.csat[idx]) : "—"),
+      value: kpiCardsData[2]?.value ?? (legacyValuesByMonth.csat[legacyIdx] !== null ? String(legacyValuesByMonth.csat[legacyIdx]) : "—"),
       meta: kpiCardsData[2]?.meta ?? "Meta: 4.5",
       icon: Smile,
       tone: "primary",
