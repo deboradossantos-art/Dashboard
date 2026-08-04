@@ -21,7 +21,7 @@ import { useAuth } from "@/components/PasswordGate";
 import { logAudit } from "@/lib/useAudit";
 import { friendlyErrorMessage } from "@/lib/errors";
 import { CANAIS_ORIGEM } from "@/data/strategicData";
-import { getCol, readInt, readFloat, parseBRL } from "../../shared/sheetParsing";
+import { parseBRL } from "../../shared/sheetParsing";
 import type { Status, ChannelModalityRow, EmployeeReportRow, DesfalqueRow, MonthlyReport } from "./upload/types";
 import { parseAnySpreadsheet, processOportunidades, processCadastros, processDesfalque } from "./upload/spreadsheetParsing";
 import {
@@ -29,7 +29,7 @@ import {
   emptyChatter, emptyFinancial, emptyEmployee, emptyDesfalque,
   emptyStrategic, emptyChannelModality, emptyDonorStatus, emptyDonorFunnel,
 } from "./upload/formHelpers";
-import { Section, MesSelect, Field, AutoField, SaveBtn, SheetUploadBox } from "./upload/components";
+import { Section, MesSelect, Field, AutoField, SaveBtn } from "./upload/components";
 
 export default function UploadPage() {
   // Antes essa página só liberava pro e-mail da Débora — restrição removida
@@ -74,24 +74,16 @@ export default function UploadPage() {
   // ===== Painel de Operação e Arrecadação (tabelas novas) =====
   const [strategic, setStrategic] = useState(emptyStrategic());
   const [strategicStatus, setStrategicStatus] = useState<Status>("idle");
-  const [strategicFile, setStrategicFile] = useState<File | null>(null);
-  const [strategicUploadStatus, setStrategicUploadStatus] = useState<Status>("idle");
 
   const [channelModality, setChannelModality] = useState(emptyChannelModality());
   const [channelModalityMes, setChannelModalityMes] = useState(MES_ATUAL);
   const [channelModalityStatus, setChannelModalityStatus] = useState<Status>("idle");
-  const [channelModalityFile, setChannelModalityFile] = useState<File | null>(null);
-  const [channelModalityUploadStatus, setChannelModalityUploadStatus] = useState<Status>("idle");
 
   const [donorStatus, setDonorStatus] = useState(emptyDonorStatus());
   const [donorStatusStatus, setDonorStatusStatus] = useState<Status>("idle");
-  const [donorStatusFile, setDonorStatusFile] = useState<File | null>(null);
-  const [donorStatusUploadStatus, setDonorStatusUploadStatus] = useState<Status>("idle");
 
   const [donorFunnel, setDonorFunnel] = useState(emptyDonorFunnel());
   const [donorFunnelStatus, setDonorFunnelStatus] = useState<Status>("idle");
-  const [donorFunnelFile, setDonorFunnelFile] = useState<File | null>(null);
-  const [donorFunnelUploadStatus, setDonorFunnelUploadStatus] = useState<Status>("idle");
 
   const [syncSheetsStatus, setSyncSheetsStatus] = useState<Status>("idle");
 
@@ -475,148 +467,6 @@ export default function UploadPage() {
     logAudit(user.email!, "Métodos por segmento salvos", `Mês: ${fmtMes(channelModalityMes)}`);
   });
 
-  // ===== Painel de Operação e Arrecadação — upload de planilha =====
-  // As 4 planilhas abaixo são um formato próprio (não vêm de nenhum sistema
-  // externo como o Salesforce): uma linha por mês (ou por mês+canal, no caso
-  // de Métodos por Segmento), com cabeçalhos em português. Cada upload
-  // processa quantas linhas/meses vierem na planilha de uma vez — ao
-  // contrário do formulário manual, que só edita o mês selecionado.
-
-  const handleStrategicUpload = async () => {
-    if (!strategicFile) { toast({ title: "Selecione a planilha de indicadores estratégicos", variant: "destructive" }); return; }
-    setStrategicUploadStatus("loading");
-    try {
-      const { data } = await parseAnySpreadsheet(strategicFile);
-      let count = 0;
-      for (const row of data) {
-        const mes = getCol(row, "Mes", "Mês");
-        if (!mes) continue;
-        const { error } = await supabase.from("strategic_kpi_reports").upsert({
-          mes,
-          arrecadacao_ativa: parseBRL(getCol(row, "Arrecadacao Ativa", "Arrecadação Ativa")),
-          doadores_ativos: readInt(row, "Doadores Ativos"),
-          doadores_base: readInt(row, "Doadores Base", "Base Total"),
-          doadores_cartao_recorrente: readInt(row, "Doadores Cartao Recorrente", "Doadores Cartão Recorrente"),
-          doacoes_identificadas: readInt(row, "Doacoes Identificadas", "Doações Identificadas"),
-          doacoes_total: readInt(row, "Doacoes Total", "Doações Totais", "Doações Total"),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "mes" });
-        if (error) throw error;
-        count++;
-      }
-      if (count === 0) throw new Error('Nenhuma linha com coluna "Mes" preenchida foi encontrada na planilha.');
-      setStrategicUploadStatus("success");
-      setStrategicFile(null);
-      toast({ title: `${count} mês(es) de Indicadores Estratégicos importado(s)!` });
-      logAudit(user.email!, "Indicadores estratégicos importados via planilha", `${count} mês(es)`);
-      loadSavedData(strategic.mes);
-      setTimeout(() => setStrategicUploadStatus("idle"), 3000);
-    } catch (err) {
-      setStrategicUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
-    }
-  };
-
-  const handleChannelModalityUpload = async () => {
-    if (!channelModalityFile) { toast({ title: "Selecione a planilha de métodos por segmento", variant: "destructive" }); return; }
-    setChannelModalityUploadStatus("loading");
-    try {
-      const { data } = await parseAnySpreadsheet(channelModalityFile);
-      let count = 0;
-      for (const row of data) {
-        const mes = getCol(row, "Mes", "Mês");
-        const canal = getCol(row, "Canal");
-        if (!mes || !canal) continue;
-        const { error } = await supabase.from("channel_modality_reports").upsert({
-          mes,
-          canal,
-          cartao_credito: readInt(row, "Cartao de Credito", "Cartão de Crédito"),
-          cartao_recorrencia: readInt(row, "Cartao Recorrencia", "Cartão Recorrência"),
-          boleto: readInt(row, "Boleto"),
-          pix: readInt(row, "Pix"),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "mes, canal" });
-        if (error) throw error;
-        count++;
-      }
-      if (count === 0) throw new Error('Nenhuma linha com colunas "Mes" e "Canal" preenchidas foi encontrada na planilha.');
-      setChannelModalityUploadStatus("success");
-      setChannelModalityFile(null);
-      toast({ title: `${count} linha(s) de Métodos por Segmento importada(s)!` });
-      logAudit(user.email!, "Métodos por segmento importados via planilha", `${count} linha(s)`);
-      loadSavedData(channelModalityMes);
-      setTimeout(() => setChannelModalityUploadStatus("idle"), 3000);
-    } catch (err) {
-      setChannelModalityUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
-    }
-  };
-
-  const handleDonorStatusUpload = async () => {
-    if (!donorStatusFile) { toast({ title: "Selecione a planilha de status dos doadores", variant: "destructive" }); return; }
-    setDonorStatusUploadStatus("loading");
-    try {
-      const { data } = await parseAnySpreadsheet(donorStatusFile);
-      let count = 0;
-      for (const row of data) {
-        const mes = getCol(row, "Mes", "Mês");
-        if (!mes) continue;
-        const { error } = await supabase.from("donor_status_reports").upsert({
-          mes,
-          pct_ativos: readFloat(row, "Pct Ativos", "Ativos", "Ativos (%)"),
-          pct_inativos: readFloat(row, "Pct Inativos", "Inativos", "Inativos (%)"),
-          pct_cancelados: readFloat(row, "Pct Cancelados", "Cancelados", "Cancelados (%)"),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "mes" });
-        if (error) throw error;
-        count++;
-      }
-      if (count === 0) throw new Error('Nenhuma linha com coluna "Mes" preenchida foi encontrada na planilha.');
-      setDonorStatusUploadStatus("success");
-      setDonorStatusFile(null);
-      toast({ title: `${count} mês(es) de Status dos Doadores importado(s)!` });
-      logAudit(user.email!, "Status dos doadores importado via planilha", `${count} mês(es)`);
-      loadSavedData(donorStatus.mes);
-      setTimeout(() => setDonorStatusUploadStatus("idle"), 3000);
-    } catch (err) {
-      setDonorStatusUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
-    }
-  };
-
-  const handleDonorFunnelUpload = async () => {
-    if (!donorFunnelFile) { toast({ title: "Selecione a planilha do funil de ativação", variant: "destructive" }); return; }
-    setDonorFunnelUploadStatus("loading");
-    try {
-      const { data } = await parseAnySpreadsheet(donorFunnelFile);
-      let count = 0;
-      for (const row of data) {
-        const mes = getCol(row, "Mes", "Mês");
-        if (!mes) continue;
-        const { error } = await supabase.from("donor_funnel_reports").upsert({
-          mes,
-          cadastro_inicial: readInt(row, "Cadastro Inicial"),
-          contato_realizado: readInt(row, "Contato Realizado"),
-          primeiro_pagamento: readInt(row, "Primeiro Pagamento"),
-          doador_ativo: readInt(row, "Doador Ativo", "Doador Ativo Recorrente"),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "mes" });
-        if (error) throw error;
-        count++;
-      }
-      if (count === 0) throw new Error('Nenhuma linha com coluna "Mes" preenchida foi encontrada na planilha.');
-      setDonorFunnelUploadStatus("success");
-      setDonorFunnelFile(null);
-      toast({ title: `${count} mês(es) do Funil de Ativação importado(s)!` });
-      logAudit(user.email!, "Funil de ativação importado via planilha", `${count} mês(es)`);
-      loadSavedData(donorFunnel.mes);
-      setTimeout(() => setDonorFunnelUploadStatus("idle"), 3000);
-    } catch (err) {
-      setDonorFunnelUploadStatus("error");
-      toast({ title: "Erro ao processar planilha", description: friendlyErrorMessage(err), variant: "destructive" });
-    }
-  };
-
   // Chama a função serverless /api/sync-sheets (ver api/sync-sheets.ts), que
   // lê as 4 abas do Google Sheets e faz upsert direto no Supabase.
   // Se VITE_SYNC_SECRET estiver definida (mesmo valor de SYNC_SECRET na
@@ -763,15 +613,7 @@ export default function UploadPage() {
 
             <Section title="Indicadores Estratégicos" icon={<Landmark className="h-4 w-4" />} color="bg-primary/10 text-primary">
               <MesSelect value={strategic.mes} onChange={(v) => setStrategic(p => ({ ...p, mes: v }))} onLoadData={loadSavedData} />
-              <p className="text-[11px] text-muted-foreground">Alimenta: Arrecadação Ativa, Taxa de Ativação Geral, Taxa de Recorrência no Cartão e Índice de Conciliação.</p>
-              <SheetUploadBox
-                file={strategicFile}
-                setFile={setStrategicFile}
-                onProcess={handleStrategicUpload}
-                status={strategicUploadStatus}
-                columnsHint="Mes, Arrecadacao Ativa, Doadores Ativos, Doadores Base, Doadores Cartao Recorrente, Doacoes Identificadas, Doacoes Total"
-              />
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">Ou preencha manualmente</p>
+              <p className="text-[11px] text-muted-foreground">Alimenta: Arrecadação Ativa, Taxa de Ativação Geral, Taxa de Recorrência no Cartão e Índice de Conciliação. Preenchido automaticamente pelo sync do Google Sheets acima — os campos abaixo servem só pra correção pontual.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Arrecadação Ativa (R$)" value={strategic.arrecadacao_ativa} onChange={(v) => setStrategic(p => ({ ...p, arrecadacao_ativa: v }))} prefix="R$" money />
                 <Field label="Doadores Ativos (qtd)" value={strategic.doadores_ativos} onChange={(v) => setStrategic(p => ({ ...p, doadores_ativos: v }))} hint="Usado em Ativação e Recorrência" />
@@ -785,15 +627,7 @@ export default function UploadPage() {
 
             <Section title="Métodos por Segmento (Canal x Modalidade)" icon={<SlidersHorizontal className="h-4 w-4" />} color="bg-warning/10 text-warning" defaultOpen={false}>
               <MesSelect value={channelModalityMes} onChange={setChannelModalityMes} onLoadData={loadSavedData} />
-              <p className="text-[11px] text-muted-foreground">Alimenta o gráfico de barras lado a lado — quantidade de doadores por canal e modalidade.</p>
-              <SheetUploadBox
-                file={channelModalityFile}
-                setFile={setChannelModalityFile}
-                onProcess={handleChannelModalityUpload}
-                status={channelModalityUploadStatus}
-                columnsHint="Mes, Canal, Cartao, Boleto, Pix, TED (uma linha por canal, por mês)"
-              />
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">Ou preencha manualmente</p>
+              <p className="text-[11px] text-muted-foreground">Alimenta o gráfico de barras lado a lado — quantidade de doadores por canal e modalidade. Preenchido automaticamente pelo sync do Google Sheets acima — os campos abaixo servem só pra correção pontual.</p>
               {CANAIS_ORIGEM.map((canal) => (
                 <div key={canal} className="rounded-xl border border-border p-3 space-y-2">
                   <p className="text-xs font-semibold text-foreground">{canal}</p>
@@ -810,15 +644,7 @@ export default function UploadPage() {
 
             <Section title="Status dos Doadores (%)" icon={<LineChart className="h-4 w-4" />} color="bg-success/10 text-success" defaultOpen={false}>
               <MesSelect value={donorStatus.mes} onChange={(v) => setDonorStatus(p => ({ ...p, mes: v }))} onLoadData={loadSavedData} />
-              <p className="text-[11px] text-muted-foreground">Alimenta o gráfico Ativos vs. Inativos vs. Cancelados. Cancelado = informou que não quer mais doar OU não respondeu 5 tentativas de contato.</p>
-              <SheetUploadBox
-                file={donorStatusFile}
-                setFile={setDonorStatusFile}
-                onProcess={handleDonorStatusUpload}
-                status={donorStatusUploadStatus}
-                columnsHint="Mes, Pct Ativos, Pct Inativos, Pct Cancelados"
-              />
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">Ou preencha manualmente</p>
+              <p className="text-[11px] text-muted-foreground">Alimenta o gráfico Ativos vs. Inativos vs. Cancelados. Cancelado = informou que não quer mais doar OU não respondeu 5 tentativas de contato. Preenchido automaticamente pelo sync do Google Sheets acima — os campos abaixo servem só pra correção pontual.</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Ativos (%)" value={donorStatus.pct_ativos} onChange={(v) => setDonorStatus(p => ({ ...p, pct_ativos: v }))} suffix="%" />
                 <Field label="Inativos (%)" value={donorStatus.pct_inativos} onChange={(v) => setDonorStatus(p => ({ ...p, pct_inativos: v }))} suffix="%" hint="Sem doar há 1-3 meses" />
@@ -829,15 +655,7 @@ export default function UploadPage() {
 
             <Section title="Jornada de Ativação do Doador (Funil)" icon={<Workflow className="h-4 w-4" />} color="bg-info/10 text-info" defaultOpen={false}>
               <MesSelect value={donorFunnel.mes} onChange={(v) => setDonorFunnel(p => ({ ...p, mes: v }))} onLoadData={loadSavedData} />
-              <p className="text-[11px] text-muted-foreground">Alimenta o funil: vai até o Doador Ativo (recorrente), não só o 1º pagamento.</p>
-              <SheetUploadBox
-                file={donorFunnelFile}
-                setFile={setDonorFunnelFile}
-                onProcess={handleDonorFunnelUpload}
-                status={donorFunnelUploadStatus}
-                columnsHint="Mes, Cadastro Inicial, Contato Realizado, Primeiro Pagamento, Doador Ativo"
-              />
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">Ou preencha manualmente</p>
+              <p className="text-[11px] text-muted-foreground">Alimenta o funil: vai até o Doador Ativo (recorrente), não só o 1º pagamento. Preenchido automaticamente pelo sync do Google Sheets acima — os campos abaixo servem só pra correção pontual.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Cadastro Inicial (qtd)" value={donorFunnel.cadastro_inicial} onChange={(v) => setDonorFunnel(p => ({ ...p, cadastro_inicial: v }))} />
                 <Field label="Contato Realizado (qtd)" value={donorFunnel.contato_realizado} onChange={(v) => setDonorFunnel(p => ({ ...p, contato_realizado: v }))} />
