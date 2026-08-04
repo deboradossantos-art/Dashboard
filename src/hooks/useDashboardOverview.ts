@@ -74,35 +74,38 @@ interface EmployeeReport {
   boletos_pagos: number;
 }
 
-const valueOrFallback = (value: string | undefined, fallback: string) =>
+// Exportadas (além de usadas neste arquivo) para poder testá-las
+// isoladamente em useDashboardOverview.calc.test.ts, sem precisar montar o
+// hook inteiro com mocks do Supabase.
+export const valueOrFallback = (value: string | undefined, fallback: string) =>
   value?.trim() ? value : fallback;
-const getKpiValue = (kpis: typeof defaultKpiCards, label: string, fallback: string) =>
+export const getKpiValue = (kpis: typeof defaultKpiCards, label: string, fallback: string) =>
   valueOrFallback(kpis.find((kpi) => kpi.label === label)?.value, fallback);
 // A importação gravou 0 em campos que não tinha dado (cadastros, volume) nos
 // meses Jan–Mai. Como 0 não é um valor real ali, tratamos 0/null/undefined como
 // "ausente" para cair no fallback em vez de exibir um zero falso.
-const presente = (v: number | null | undefined): number | null =>
+export const presente = (v: number | null | undefined): number | null =>
   v != null && Number.isFinite(v) && v > 0 ? v : null;
 // Soma o que entrou via Cora/Stone/Asaas no mês — esses comprovantes não
 // passam pela planilha de Oportunidades, então sem isso ficavam de fora da
 // Receita Real e da Meta Cumprida mesmo depois de salvos no financeiro.
-const finExtra = (fr: { cora?: number | null; stone?: number | null; asaas?: number | null } | null | undefined) =>
+export const finExtra = (fr: { cora?: number | null; stone?: number | null; asaas?: number | null } | null | undefined) =>
   (fr?.cora ?? 0) + (fr?.stone ?? 0) + (fr?.asaas ?? 0);
-const parseDisplayNumber = (raw: string | undefined, fallback: number | null) => {
+export const parseDisplayNumber = (raw: string | undefined, fallback: number | null) => {
   if (!raw?.trim()) return fallback;
   const normalized = raw.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
   const value = Number(normalized);
   return Number.isFinite(value) ? value : fallback;
 };
-const parseKpiNumber = (kpis: typeof defaultKpiCards, label: string, fallback: number) =>
+export const parseKpiNumber = (kpis: typeof defaultKpiCards, label: string, fallback: number) =>
   parseDisplayNumber(kpis.find((kpi) => kpi.label === label)?.value, fallback) ?? fallback;
 
-function pctDelta(current: number | null, prev: number | null): number | null {
+export function pctDelta(current: number | null, prev: number | null): number | null {
   if (current === null || prev === null || prev === 0) return null;
   return ((current - prev) / prev) * 100;
 }
 
-function fmtBRL(v: number) {
+export function fmtBRL(v: number) {
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
