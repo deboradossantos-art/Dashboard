@@ -109,21 +109,13 @@ ler ou alterar as tabelas sem passar pelo login. Ou seja, hoje a proteção real
 dos dados é a obscuridade da URL/chave do projeto, não controle de acesso.
 
 Se o setor for colocar dados reais de doadores em produção, **habilite RLS e
-crie policies antes disso** — não é opcional para uso sério. Exemplo mínimo
-(restringe leitura/escrita a usuários autenticados via Supabase Auth, que é
-quem passou pelo login Google):
-
-```sql
-alter table strategic_kpi_reports enable row level security;
-alter table channel_modality_reports enable row level security;
-alter table donor_status_reports enable row level security;
-alter table donor_funnel_reports enable row level security;
-alter table audit_log enable row level security;
-
-create policy "Authenticated read/write" on strategic_kpi_reports
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
--- repita a policy acima (trocando o nome da tabela) para as demais tabelas
-```
+crie policies antes disso** — não é opcional para uso sério. O script
+[`sql/enable_rls.sql`](./sql/enable_rls.sql) já cobre todas as tabelas usadas
+pelo app (restringe leitura/escrita a usuários autenticados via Supabase
+Auth, que é quem passou pelo login Google) — cole o conteúdo no SQL Editor
+do Supabase e execute. O sync do Google Sheets (`api/sync-sheets.ts`)
+continua funcionando normalmente depois, porque ele usa a
+`SUPABASE_SERVICE_ROLE_KEY`, que ignora RLS.
 
 Isso ainda não filtra por email/domínio permitido — só exige uma sessão
 Supabase válida. Se precisar restringir por email, combine com uma checagem
