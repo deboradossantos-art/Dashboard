@@ -86,6 +86,15 @@ export const getKpiValue = (kpis: typeof defaultKpiCards, label: string, fallbac
 // "ausente" para cair no fallback em vez de exibir um zero falso.
 export const presente = (v: number | null | undefined): number | null =>
   v != null && Number.isFinite(v) && v > 0 ? v : null;
+// Acesso seguro aos arrays de legacyValuesByMonth: monthIndex mapeia mais
+// meses (ex.: Jan/2026) do que esses arrays têm posições (o histórico fixo
+// só cobre Fev–Jul), e o mês anterior ao mais antigo do fallback também cai
+// fora do range. Um índice fora do array retorna `undefined`, que vira NaN
+// em soma (`undefined + 5`) e quebra a página em `.toLocaleString()`; aqui
+// tratamos esse "sem fallback" como `null` de forma explícita e uniforme,
+// que soma como 0 e nunca quebra chamada de método.
+export const legacyAt = (arr: readonly (number | null)[], index: number): number | null =>
+  index >= 0 && index < arr.length ? arr[index] : null;
 // Soma o que entrou via Cora/Stone/Asaas no mês — esses comprovantes não
 // passam pela planilha de Oportunidades, então sem isso ficavam de fora da
 // Receita Real e da Meta Cumprida mesmo depois de salvos no financeiro.
@@ -273,23 +282,28 @@ export function useDashboardOverview() {
   const financialReport = financialReports.find((r) => r.mes === selectedMonth) ?? null;
   // receita_relacionamento é só o que veio do Salesforce/relatórios (Oportunidades) —
   // "Comprovantes" precisa continuar refletindo só isso, sem Cora/Stone/Asaas.
-  const receitaRelacionamentoAtual = supabaseReport?.receita_relacionamento ?? legacyValuesByMonth.receitaRel[legacyIdx];
+  // Somados/formatados como número logo abaixo, então preenchem com 0 (não
+  // null) quando não há fallback pro mês — receitaRealAtual/prevHeadline etc.
+  // ficam null-safe pela soma com finExtra(), mas fmtBRL()/.toLocaleString()
+  // direto quebrariam com null (ver legacyAt acima).
+  const receitaRelacionamentoAtual = supabaseReport?.receita_relacionamento ?? (legacyAt(legacyValuesByMonth.receitaRel, legacyIdx) ?? 0);
   // O headline "Receita de Jun" é o total do mês: Salesforce + o que entrou em Cora/Stone/Asaas.
   const headlineRevenueAtual = receitaRelacionamentoAtual + finExtra(financialReport);
   // "Meta Cumprida"/"Receita Real YTD" também contam Cora/Stone/Asaas como realizado.
-  const receitaRealAtual = (supabaseReport?.receita_real ?? legacyValuesByMonth.receitaReal[legacyIdx]) + finExtra(financialReport);
-  const cadastrosAtivosNum = presente(supabaseReport?.cadastros_ativos) ?? legacyValuesByMonth.cadastros[legacyIdx];
+  const receitaRealAtual = (supabaseReport?.receita_real ?? legacyAt(legacyValuesByMonth.receitaReal, legacyIdx)) + finExtra(financialReport);
+  const cadastrosAtivosNum = presente(supabaseReport?.cadastros_ativos) ?? legacyAt(legacyValuesByMonth.cadastros, legacyIdx);
 
   const financialRevenue = valueOrFallback(overrides.financialRevenue, fmtBRL(receitaRelacionamentoAtual));
   const headlineRevenue = overrides.financialRevenue?.trim() ? overrides.financialRevenue : fmtBRL(headlineRevenueAtual);
+  const legacyReceitaPrev = legacyAt(legacyValuesByMonth.receitaPrev, legacyIdx);
   const financialGoal = supabaseReport?.receita_prevista_real
     ? fmtBRL(supabaseReport.receita_prevista_real)
     : financialReport?.receita_prevista
     ? fmtBRL(financialReport.receita_prevista)
-    : valueOrFallback(overrides.financialGoal, `R$ ${legacyValuesByMonth.receitaPrev[legacyIdx].toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`);
+    : valueOrFallback(overrides.financialGoal, legacyReceitaPrev != null ? fmtBRL(legacyReceitaPrev) : "—");
   const financialYTD = overrides.financialYTD?.trim() ? overrides.financialYTD : null;
   const financialYTDValue = valueOrFallback(overrides.financialYTDValue, fmtBRL(receitaRealAtual));
-  const cadastrosAtivos = cadastrosAtivosNum.toLocaleString("pt-BR");
+  const cadastrosAtivos = cadastrosAtivosNum != null ? cadastrosAtivosNum.toLocaleString("pt-BR") : "—";
 
   // Comprovantes = só Salesforce/relatórios, sem somar Cora/Stone/Asaas.
   const comprovantes = financialRevenue;
@@ -308,10 +322,10 @@ export function useDashboardOverview() {
     return r.mes === `${prevAno}-${String(prevMes).padStart(2, "0")}`;
   }) ?? null;
 
-  const receitaPrevistaAtual = supabaseReport?.receita_prevista_real || financialReport?.receita_prevista || (parseDisplayNumber(financialGoal, legacyValuesByMonth.receitaPrev[legacyIdx]) ?? legacyValuesByMonth.receitaPrev[legacyIdx]);
-  const volumeAtual = presente(chatterReport?.total_mensagens) ?? parseDisplayNumber(kpiCardsData[1]?.value, legacyValuesByMonth.vol[legacyIdx]);
-  const tempoRespostaAtual = parseDisplayNumber(kpiCardsData[0]?.value, legacyValuesByMonth.resp[legacyIdx]);
-  const csatAtual = parseDisplayNumber(kpiCardsData[2]?.value, legacyValuesByMonth.csat[legacyIdx]);
+  const receitaPrevistaAtual = supabaseReport?.receita_prevista_real || financialReport?.receita_prevista || (parseDisplayNumber(financialGoal, legacyReceitaPrev) ?? legacyReceitaPrev);
+  const volumeAtual = presente(chatterReport?.total_mensagens) ?? parseDisplayNumber(kpiCardsData[1]?.value, legacyAt(legacyValuesByMonth.vol, legacyIdx));
+  const tempoRespostaAtual = parseDisplayNumber(kpiCardsData[0]?.value, legacyAt(legacyValuesByMonth.resp, legacyIdx));
+  const csatAtual = parseDisplayNumber(kpiCardsData[2]?.value, legacyAt(legacyValuesByMonth.csat, legacyIdx));
   const progressoManual = parseDisplayNumber(financialYTD ?? undefined, null);
 
   // Desfalque: usa dados reais do Supabase quando existem para o mês selecionado
@@ -335,14 +349,14 @@ export function useDashboardOverview() {
     const prevAno = mes === 1 ? ano - 1 : ano;
     return r.mes === `${prevAno}-${String(prevMes).padStart(2, "0")}`;
   }) ?? null;
-  const prevReceitaRel = prevSupabaseReport?.receita_relacionamento ?? legacyValuesByMonth.receitaRel[legacyPrevIdx];
+  const prevReceitaRel = prevSupabaseReport?.receita_relacionamento ?? legacyAt(legacyValuesByMonth.receitaRel, legacyPrevIdx);
   const prevHeadlineRevenue = prevReceitaRel + finExtra(prevFinancialReport);
-  const prevReceitaReal = (prevSupabaseReport?.receita_real ?? legacyValuesByMonth.receitaReal[legacyPrevIdx]) + finExtra(prevFinancialReport);
+  const prevReceitaReal = (prevSupabaseReport?.receita_real ?? legacyAt(legacyValuesByMonth.receitaReal, legacyPrevIdx)) + finExtra(prevFinancialReport);
 
-  const prevVolume = presente(prevChatterReport?.total_mensagens) ?? legacyValuesByMonth.vol[legacyPrevIdx];
+  const prevVolume = presente(prevChatterReport?.total_mensagens) ?? legacyAt(legacyValuesByMonth.vol, legacyPrevIdx);
   const dVol = pctDelta(volumeAtual, prevVolume ?? null);
-  const dResp = pctDelta(tempoRespostaAtual, legacyValuesByMonth.resp[legacyPrevIdx] ?? null);
-  const dCsat = pctDelta(csatAtual, legacyValuesByMonth.csat[legacyPrevIdx] ?? null);
+  const dResp = pctDelta(tempoRespostaAtual, legacyAt(legacyValuesByMonth.resp, legacyPrevIdx));
+  const dCsat = pctDelta(csatAtual, legacyAt(legacyValuesByMonth.csat, legacyPrevIdx));
   const dReceita = pctDelta(receitaRelacionamentoAtual, prevReceitaRel);
   const dHeadline = pctDelta(headlineRevenueAtual, prevHeadlineRevenue);
   const dReal = pctDelta(receitaRealAtual, prevReceitaReal);
@@ -363,9 +377,9 @@ export function useDashboardOverview() {
       const monthDataIndex = monthIndex[month.id] ?? 0;
       const supaRep = reports.find((r) => r.mes === month.id);
       const finRep = financialReports.find((r) => r.mes === month.id);
-      const receitaRel = supaRep?.receita_relacionamento ?? legacyValuesByMonth.receitaRel[monthDataIndex];
-      const receitaPrev = supaRep?.receita_prevista_real || finRep?.receita_prevista || legacyValuesByMonth.receitaPrev[monthDataIndex];
-      const receitaReal = (supaRep?.receita_real ?? legacyValuesByMonth.receitaReal[monthDataIndex]) + finExtra(finRep);
+      const receitaRel = supaRep?.receita_relacionamento ?? legacyAt(legacyValuesByMonth.receitaRel, monthDataIndex);
+      const receitaPrev = supaRep?.receita_prevista_real || finRep?.receita_prevista || legacyAt(legacyValuesByMonth.receitaPrev, monthDataIndex);
+      const receitaReal = (supaRep?.receita_real ?? legacyAt(legacyValuesByMonth.receitaReal, monthDataIndex)) + finExtra(finRep);
       const conversao = receitaPrev && receitaPrev > 0 ? Number((((receitaReal ?? 0) / receitaPrev) * 100).toFixed(1)) : 0;
 
       acc.evolucaoReceita.push({ month: month.label, value: receitaRel ?? 0 });
@@ -457,7 +471,7 @@ export function useDashboardOverview() {
   const kpis: { label: string; value: string; meta: string; icon: any; tone: Tone; delta: number | null; higherIsBetter: boolean; sparkline: number[] }[] = [
     {
       label: kpiCardsData[0]?.label ?? "Tempo Médio de Resposta",
-      value: kpiCardsData[0]?.value ?? (legacyValuesByMonth.resp[legacyIdx] !== null ? `${legacyValuesByMonth.resp[legacyIdx]} min` : "—"),
+      value: kpiCardsData[0]?.value ?? (legacyAt(legacyValuesByMonth.resp, legacyIdx) !== null ? `${legacyAt(legacyValuesByMonth.resp, legacyIdx)} min` : "—"),
       meta: kpiCardsData[0]?.meta ?? "Meta: 10 min",
       icon: Clock,
       tone: "warning",
@@ -477,7 +491,7 @@ export function useDashboardOverview() {
     },
     {
       label: kpiCardsData[2]?.label ?? "Satisfação (CSAT)",
-      value: kpiCardsData[2]?.value ?? (legacyValuesByMonth.csat[legacyIdx] !== null ? String(legacyValuesByMonth.csat[legacyIdx]) : "—"),
+      value: kpiCardsData[2]?.value ?? (legacyAt(legacyValuesByMonth.csat, legacyIdx) !== null ? String(legacyAt(legacyValuesByMonth.csat, legacyIdx)) : "—"),
       meta: kpiCardsData[2]?.meta ?? "Meta: 4.5",
       icon: Smile,
       tone: "primary",

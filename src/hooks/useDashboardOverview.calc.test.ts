@@ -8,7 +8,26 @@ import {
   fmtBRL,
   valueOrFallback,
   getKpiValue,
+  legacyAt,
 } from "./useDashboardOverview";
+
+describe("legacyAt", () => {
+  const arr = [10, 20, 30];
+  it("retorna o valor quando o índice existe no array", () => {
+    expect(legacyAt(arr, 1)).toBe(20);
+  });
+  // Bug real que isso corrige: monthIndex (legacyMonthlyFallback.ts) mapeia
+  // mais meses do que esses arrays têm posições — um índice fora do range
+  // (ex.: Jan/2026) fazia arr[idx] retornar undefined, que virava NaN em
+  // soma (`undefined + 5`) e quebrava a página em `.toLocaleString()`.
+  it("retorna null (não undefined) para índice fora do range, em vez de deixar o array retornar undefined", () => {
+    expect(legacyAt(arr, 3)).toBeNull();
+    expect(legacyAt(arr, -1)).toBeNull();
+  });
+  it("null soma como 0, ao contrário de undefined que vira NaN", () => {
+    expect((legacyAt(arr, 3) ?? 0) + 5).toBe(5);
+  });
+});
 
 describe("presente", () => {
   it("trata 0 como ausente (zero falso da importação, não dado real)", () => {
