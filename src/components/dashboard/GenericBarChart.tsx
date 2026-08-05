@@ -19,7 +19,7 @@ function fmt(v: number | string) {
 }
 
 const GenericBarChart = ({ title, data, xKey, yKey, color, label }: GenericBarChartProps) => (
-  <div className="bg-card rounded-lg p-6 shadow-sm">
+  <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
     <h3 className="text-base font-semibold text-foreground mb-4">{title}</h3>
     {data.length === 0 ? (
       <ChartEmptyState />

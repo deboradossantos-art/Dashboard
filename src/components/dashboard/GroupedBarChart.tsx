@@ -53,7 +53,7 @@ const GroupedBarChart = ({ title, data, xKey, series, valueFormatter = defaultFm
   const chartHeight = Math.max(180, rowCount * series.length * 34 + 60);
 
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm">
+    <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-foreground">{title}</h3>
         {hiddenCount > 0 && (

@@ -36,7 +36,7 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
   const maxAbsNovosAtivos = Math.max(1, ...data.map((d) => (d.novosAtivos !== null ? Math.abs(d.novosAtivos) : 0)));
 
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm">
+    <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
       <h3 className="text-base font-semibold text-foreground">{title}</h3>
       {subtitle && <p className="text-xs text-muted-foreground mt-0.5 mb-2">{subtitle}</p>}
 

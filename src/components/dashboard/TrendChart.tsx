@@ -22,7 +22,7 @@ const TrendChart = ({ title, data, color, label }: TrendChartProps) => {
   const max = values.length > 0 ? Math.max(...values) : 0;
   const min = values.length > 0 ? Math.min(...values) : 0;
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm">
+    <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
       <h3 className="text-base font-semibold text-foreground mb-4">{title}</h3>
       {data.length === 0 ? (
         <ChartEmptyState />

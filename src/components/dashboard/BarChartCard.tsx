@@ -18,7 +18,7 @@ function fmt(v: number) {
 }
 
 const BarChartCard = ({ title, data, color, label, valueFormatter }: BarChartCardProps) => (
-  <div className="bg-card rounded-lg p-6 shadow-sm">
+  <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
     <h3 className="text-base font-semibold text-foreground mb-4">{title}</h3>
     <ResponsiveContainer width="100%" height={250}>
       <BarChart data={data}>

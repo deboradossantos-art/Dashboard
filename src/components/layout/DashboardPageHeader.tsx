@@ -31,7 +31,7 @@ const DashboardPageHeader = ({
   title, subtitle, selectedMonth, setSelectedMonth, monthOpen, setMonthOpen, selectedLabel, allMonths, reports,
   exportTargetId, exportFileName, exportTitle,
 }: DashboardPageHeaderProps) => (
-  <div className="px-4 sm:px-6 lg:px-10 py-5 flex items-center justify-between gap-4 max-w-[1500px] mx-auto">
+  <div className="px-4 sm:px-6 lg:px-10 py-5 flex flex-wrap items-center justify-between gap-4 max-w-[1500px] mx-auto">
     <div>
       <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">{title}</h1>
       <p className="text-xs text-muted-foreground mt-0.5">{subtitle ?? `Período: ${selectedLabel}`}</p>
