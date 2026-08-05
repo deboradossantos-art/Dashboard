@@ -94,6 +94,7 @@ export const finExtra = (fr: { cora?: number | null; stone?: number | null; asaa
 export const parseDisplayNumber = (raw: string | undefined, fallback: number | null) => {
   if (!raw?.trim()) return fallback;
   const normalized = raw.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  if (normalized === "" || normalized === "-") return fallback;
   const value = Number(normalized);
   return Number.isFinite(value) ? value : fallback;
 };

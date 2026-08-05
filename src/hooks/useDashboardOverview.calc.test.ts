@@ -56,13 +56,12 @@ describe("parseDisplayNumber", () => {
   it("cai no fallback quando o resultado não é um número válido (ex: dois pontos decimais)", () => {
     expect(parseDisplayNumber("12.34.56", 7)).toBe(7);
   });
-  // Não é o comportamento ideal, mas é o comportamento real hoje: caracteres
-  // não numéricos (ex: "—", usado como placeholder de "sem dado" em vários
-  // KPIs) são removidos pelo regex antes da conversão, então "—" vira string
-  // vazia -> Number("") = 0 (finito) -> retorna 0 em vez do fallback. Este
-  // teste documenta a armadilha; ver sugestão de correção separada.
-  it('trata "—" como 0, não como fallback (comportamento atual, não ideal)', () => {
-    expect(parseDisplayNumber("—", 7)).toBe(0);
+  // "—" (usado como placeholder de "sem dado" em vários KPIs) é removido pelo
+  // regex antes da conversão, virando string vazia. Sem tratamento explícito
+  // isso cairia em Number("") = 0 (finito), disfarçando "sem dado" como zero
+  // real; por isso cai no fallback em vez de 0.
+  it('cai no fallback com "—" (placeholder de "sem dado"), não trata como 0', () => {
+    expect(parseDisplayNumber("—", 7)).toBe(7);
   });
 });
 
