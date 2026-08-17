@@ -100,8 +100,8 @@ const Index = () => {
             </div>
           )}
           <DonorStatusTrendChart
-            title="Gráfico de Linha Temporal (Doadores Ativos vs. Churn)"
-            subtitle="Novos Ativos = variação mês a mês de Doadores Ativos. Churn = % de Cancelados no mês (não quis mais doar OU não respondeu 5 tentativas de contato)."
+            title="Variação de Doadores Ativos vs. Churn"
+            subtitle="Variação de Doadores Ativos = diferença na quantidade de doadores ativos entre o mês atual e o mês anterior. Churn = percentual de doadores ativos no início do período que cancelaram ou deixaram de responder após 5 tentativas de contato."
             data={d.donorStatusChartData}
           />
         </div>

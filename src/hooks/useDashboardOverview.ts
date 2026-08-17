@@ -450,20 +450,28 @@ export function useDashboardOverview() {
     const [mon, year] = label.split(" ");
     return `${mon}/${year.slice(-2)}`;
   };
-  // Gráfico "New Actives vs. Churn" (revertido ao conceito original do PDF, a
-  // pedido de Débora — eixo duplo, novos ativos em quantidade x churn em %).
-  // "New Actives" = variação mês a mês de Doadores Ativos (Indicadores
-  // Estratégicos); "Churn" = Pct Cancelados do mês (Status dos Doadores).
+  // Gráfico "Variação de Doadores Ativos vs. Churn" — eixo duplo, variação de
+  // ativos em quantidade x churn em %.
+  // "Variação de Doadores Ativos" = ativos do mês - ativos do mês anterior
+  // (Indicadores Estratégicos). NÃO é "Novos Doadores": não existe coluna
+  // com a contagem de doadores efetivamente adquiridos no mês, só o total de
+  // ativos por mês — então não dá pra separar quanto da variação veio de
+  // gente nova x quanto veio de cancelamento, e por isso o nome reflete
+  // exatamente o que o número é (a diferença líquida), sem inventar métrica.
+  // "Churn" = Pct Cancelados do mês (Status dos Doadores, `pct_cancelados`) —
+  // campo digitado manualmente no Upload como % (ver hint em Upload.tsx).
+  // `mesesOrdenados[0]` (o mês mais antigo da lista) sempre fica com
+  // variacaoAtivos null: não há mês anterior pra comparar.
   const mesesOrdenados = [...MONTHS].reverse();
   const donorStatusChartData = mesesOrdenados.map((m, i) => {
     const statusAtual = donorStatusReports.find((dr) => dr.mes === m.id);
     const ativosAtual = strategicReports.find((sr) => sr.mes === m.id)?.doadores_ativos ?? null;
     const mesAnterior = mesesOrdenados[i - 1];
     const ativosAnterior = mesAnterior ? strategicReports.find((sr) => sr.mes === mesAnterior.id)?.doadores_ativos ?? null : null;
-    const novosAtivos = ativosAtual !== null && ativosAnterior !== null ? ativosAtual - ativosAnterior : null;
+    const variacaoAtivos = ativosAtual !== null && ativosAnterior !== null ? ativosAtual - ativosAnterior : null;
     return {
       month: shortMonthLabel(m.label),
-      novosAtivos,
+      variacaoAtivos,
       churn: statusAtual?.pct_cancelados ?? null,
     };
   });

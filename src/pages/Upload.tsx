@@ -648,7 +648,7 @@ export default function UploadPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Ativos (%)" value={donorStatus.pct_ativos} onChange={(v) => setDonorStatus(p => ({ ...p, pct_ativos: v }))} suffix="%" />
                 <Field label="Inativos (%)" value={donorStatus.pct_inativos} onChange={(v) => setDonorStatus(p => ({ ...p, pct_inativos: v }))} suffix="%" hint="Sem doar há 1-3 meses" />
-                <Field label="Cancelados (%)" value={donorStatus.pct_cancelados} onChange={(v) => setDonorStatus(p => ({ ...p, pct_cancelados: v }))} suffix="%" />
+                <Field label="Cancelados (%)" value={donorStatus.pct_cancelados} onChange={(v) => setDonorStatus(p => ({ ...p, pct_cancelados: v }))} suffix="%" hint="Cancelamentos do mês ÷ ativos no início do mês × 100 (não dividir pelos ativos do fim do mês)" />
               </div>
               <SaveBtn status={donorStatusStatus} onClick={handleDonorStatus} label="Salvar Status dos Doadores" />
             </Section>

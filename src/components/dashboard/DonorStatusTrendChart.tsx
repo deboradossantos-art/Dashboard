@@ -3,7 +3,7 @@ import ChartDataSummary from "./ChartDataSummary";
 
 export interface DonorStatusPoint {
   month: string;
-  novosAtivos: number | null;
+  variacaoAtivos: number | null;
   churn: number | null;
 }
 
@@ -21,19 +21,21 @@ const GOLD = "hsl(46 76% 57%)";
 const numFmt = (v: number) => (Number.isFinite(v) ? v.toLocaleString("pt-BR", { signDisplay: "exceptZero" }) : "—");
 
 /**
- * Conceito original do PDF, revertido a pedido de Débora: eixo duplo com
- * "Novos Ativos" (variação mês a mês de Doadores Ativos, em quantidade — eixo
- * esquerdo) e "Churn" (Pct Cancelados do mês — eixo direito, sem símbolo de %
- * pra bater com o estilo da referência).
+ * Eixo duplo: "Variação de Doadores Ativos" (ativos do mês - ativos do mês
+ * anterior, em quantidade — eixo esquerdo) e "Churn" (Pct Cancelados do mês —
+ * eixo direito, em %). Não é "Novos Doadores": não temos coluna de doadores
+ * efetivamente adquiridos no mês, só o total de ativos por mês, então a série
+ * é a diferença entre os totais (Ativos atuais = Ativos anteriores + Novos
+ * Doadores - Cancelamentos ⇒ essa diferença já é líquida das duas coisas).
  */
 const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartProps) => {
-  const hasData = data.some((d) => d.novosAtivos !== null || d.churn !== null);
+  const hasData = data.some((d) => d.variacaoAtivos !== null || d.churn !== null);
 
   // Limite simétrico calculado aqui mesmo (não como função de domain do
   // Recharts — o Recharts chama a função do mínimo só com o dataMin e a do
   // máximo só com o dataMax, cada uma sem acesso à outra, então não dá pra
   // espelhar os dois lados só com isso). Assim o 0 sempre cai no centro.
-  const maxAbsNovosAtivos = Math.max(1, ...data.map((d) => (d.novosAtivos !== null ? Math.abs(d.novosAtivos) : 0)));
+  const maxAbsVariacaoAtivos = Math.max(1, ...data.map((d) => (d.variacaoAtivos !== null ? Math.abs(d.variacaoAtivos) : 0)));
   // Mesmo raciocínio pro eixo direito (Churn): sem domain simétrico, o
   // Recharts escolhe ticks automáticos pro eixo direito que não coincidem
   // com o 0 do eixo esquerdo, então a linha central do gráfico mostrava um
@@ -59,16 +61,16 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
             <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis
               yAxisId="left"
-              domain={[-maxAbsNovosAtivos, maxAbsNovosAtivos]}
+              domain={[-maxAbsVariacaoAtivos, maxAbsVariacaoAtivos]}
               tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-              label={{ value: "Novos Ativos", angle: -90, position: "insideLeft", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              label={{ value: "Variação de Doadores Ativos (nº)", angle: -90, position: "insideLeft", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
               domain={[-maxAbsChurn, maxAbsChurn]}
               tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-              label={{ value: "Churn", angle: 90, position: "insideRight", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              label={{ value: "Churn (%)", angle: 90, position: "insideRight", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             />
             <Tooltip
               formatter={(v: number) => numFmt(v)}
@@ -84,8 +86,8 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
             <Line
               yAxisId="left"
               type="monotone"
-              dataKey="novosAtivos"
-              name="Novos Ativos"
+              dataKey="variacaoAtivos"
+              name="Variação de Doadores Ativos"
               stroke={NAVY}
               strokeWidth={3}
               dot={{ r: 5, fill: NAVY, stroke: "hsl(var(--card))", strokeWidth: 2 }}
@@ -96,7 +98,7 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
               yAxisId="right"
               type="monotone"
               dataKey="churn"
-              name="Churn"
+              name="Churn (%)"
               stroke={GOLD}
               strokeWidth={3}
               dot={{ r: 5, fill: GOLD, stroke: "hsl(var(--card))", strokeWidth: 2 }}
@@ -110,8 +112,8 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
       {hasData && (
         <ChartDataSummary
           items={data.flatMap((d) => [
-            { name: `${d.month} — Novos Ativos`, value: d.novosAtivos !== null ? numFmt(d.novosAtivos) : "—", color: NAVY },
-            { name: `${d.month} — Churn`, value: d.churn !== null ? numFmt(d.churn) : "—", color: GOLD },
+            { name: `${d.month} — Variação de Doadores Ativos`, value: d.variacaoAtivos !== null ? numFmt(d.variacaoAtivos) : "—", color: NAVY },
+            { name: `${d.month} — Churn (%)`, value: d.churn !== null ? numFmt(d.churn) : "—", color: GOLD },
           ])}
         />
       )}

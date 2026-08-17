@@ -33,7 +33,9 @@
  *   mes text
  *   pct_ativos numeric              -- % da base em status ativo
  *   pct_inativos numeric            -- % sem doar há 1-3 meses (pré-cancelamento)
- *   pct_cancelados numeric          -- % cancelados (não quer mais doar OU 5 tentativas sem resposta)
+ *   pct_cancelados numeric          -- % cancelados (não quer mais doar OU 5 tentativas sem resposta).
+ *                                      Fórmula: cancelamentos do mês / ativos no início do mês * 100
+ *                                      (denominador é sempre o início do período, não o fim)
  *
  * donor_funnel_reports
  *   mes text
