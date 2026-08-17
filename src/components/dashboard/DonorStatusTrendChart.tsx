@@ -34,6 +34,11 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
   // máximo só com o dataMax, cada uma sem acesso à outra, então não dá pra
   // espelhar os dois lados só com isso). Assim o 0 sempre cai no centro.
   const maxAbsNovosAtivos = Math.max(1, ...data.map((d) => (d.novosAtivos !== null ? Math.abs(d.novosAtivos) : 0)));
+  // Mesmo raciocínio pro eixo direito (Churn): sem domain simétrico, o
+  // Recharts escolhe ticks automáticos pro eixo direito que não coincidem
+  // com o 0 do eixo esquerdo, então a linha central do gráfico mostrava um
+  // valor de Churn (ex.: 6) em vez de 0.
+  const maxAbsChurn = Math.max(1, ...data.map((d) => (d.churn !== null ? Math.abs(d.churn) : 0)));
 
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
@@ -61,6 +66,7 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
             <YAxis
               yAxisId="right"
               orientation="right"
+              domain={[-maxAbsChurn, maxAbsChurn]}
               tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
               label={{ value: "Churn", angle: 90, position: "insideRight", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
             />
