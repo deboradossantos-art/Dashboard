@@ -613,13 +613,13 @@ export default function UploadPage() {
 
             <Section title="Indicadores Estratégicos" icon={<Landmark className="h-4 w-4" />} color="bg-primary/10 text-primary">
               <MesSelect value={strategic.mes} onChange={(v) => setStrategic(p => ({ ...p, mes: v }))} onLoadData={loadSavedData} />
-              <p className="text-[11px] text-muted-foreground">Alimenta: Arrecadação Ativa, Taxa de Migração de Inativos para Ativos e Taxa de Fidelização no Cartão. Preenchido automaticamente pelo sync do Google Sheets acima — os campos abaixo servem só pra correção pontual.</p>
+              <p className="text-[11px] text-muted-foreground">Alimenta: Arrecadação Ativa, Taxa de Ativação Geral, Taxa de Recorrência no Cartão e Índice de Conciliação. Preenchido automaticamente pelo sync do Google Sheets acima — os campos abaixo servem só pra correção pontual.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Arrecadação Ativa (R$)" value={strategic.arrecadacao_ativa} onChange={(v) => setStrategic(p => ({ ...p, arrecadacao_ativa: v }))} prefix="R$" money />
                 <Field label="Doadores Ativos (qtd)" value={strategic.doadores_ativos} onChange={(v) => setStrategic(p => ({ ...p, doadores_ativos: v }))} hint="Usado em Ativação e Recorrência" />
                 <Field label="Base Total (qtd)" value={strategic.doadores_base} onChange={(v) => setStrategic(p => ({ ...p, doadores_base: v }))} hint="Ativos + inativos + cancelados" />
                 <Field label="Doadores em Cartão Recorrente (qtd)" value={strategic.doadores_cartao_recorrente} onChange={(v) => setStrategic(p => ({ ...p, doadores_cartao_recorrente: v }))} />
-                <Field label="Doações Identificadas (qtd)" value={strategic.doacoes_identificadas} onChange={(v) => setStrategic(p => ({ ...p, doacoes_identificadas: v }))} hint="Não usado mais no Índice de Conciliação" />
+                <Field label="Doações Identificadas (qtd)" value={strategic.doacoes_identificadas} onChange={(v) => setStrategic(p => ({ ...p, doacoes_identificadas: v }))} hint="Conciliadas no período" />
                 <Field label="Doações Totais (qtd)" value={strategic.doacoes_total} onChange={(v) => setStrategic(p => ({ ...p, doacoes_total: v }))} />
               </div>
               <SaveBtn status={strategicStatus} onClick={handleStrategic} label="Salvar Indicadores Estratégicos" />

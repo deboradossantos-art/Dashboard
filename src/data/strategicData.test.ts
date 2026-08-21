@@ -7,7 +7,6 @@ import {
   fmtBRLOrDash,
   fmtPctOrDash,
   type StrategicKpiReport,
-  type ChannelModalityReport,
 } from "./strategicData";
 
 const baseReport: StrategicKpiReport = {
@@ -44,22 +43,11 @@ describe("calcTaxaRecorrenciaCartao", () => {
 });
 
 describe("calcIndiceConciliacao", () => {
-  const canalRow = (canal: string, total: number): ChannelModalityReport => ({
-    mes: "2026-07",
-    canal,
-    cartao_credito: total,
-    cartao_recorrencia: 0,
-    boleto: 0,
-    pix: 0,
+  it("calcula identificadas / total em %", () => {
+    expect(calcIndiceConciliacao(baseReport)).toBe(95);
   });
-
-  it("calcula (todas as classificações menos as pontuais) / todas as classificações, em %", () => {
-    const rows = [canalRow("Missas", 60), canalRow("Comunhão de Bens", 20), canalRow("Doação Pontual", 20)];
-    expect(calcIndiceConciliacao(rows)).toBe(80);
-  });
-  it("retorna null quando não há linhas ou o total é 0", () => {
-    expect(calcIndiceConciliacao([])).toBeNull();
-    expect(calcIndiceConciliacao([canalRow("Missas", 0)])).toBeNull();
+  it("retorna null quando faltam dados", () => {
+    expect(calcIndiceConciliacao({ ...baseReport, doacoes_total: null })).toBeNull();
   });
 });
 

@@ -411,6 +411,8 @@ export function useDashboardOverview() {
 
   const taxaAtivacao = calcTaxaAtivacao(strategicAtual);
   const taxaRecorrenciaCartao = calcTaxaRecorrenciaCartao(strategicAtual);
+  const indiceConciliacao = calcIndiceConciliacao(strategicAtual);
+  const conciliacaoAtingida = indiceConciliacao !== null && indiceConciliacao > 95;
 
   const donorFunnelAtual = donorFunnelReports.find((r) => r.mes === selectedMonth) ?? null;
   const funnelStages = [
@@ -425,9 +427,6 @@ export function useDashboardOverview() {
   const canaisVisiveis = canalFiltro.length > 0 ? canalFiltro : [...CANAIS_ORIGEM];
   const modalidadesVisiveis = modalidadeFiltro.length > 0 ? modalidadeFiltro : [...MODALIDADES];
   const channelModalityAtual = channelModalityReports.filter((r) => r.mes === selectedMonth);
-
-  const indiceConciliacao = calcIndiceConciliacao(channelModalityAtual);
-  const conciliacaoAtingida = indiceConciliacao !== null && indiceConciliacao > 95;
   const groupedBarData = canaisVisiveis.map((canal) => {
     const row = channelModalityAtual.find((r) => r.canal === canal);
     return {
