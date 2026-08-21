@@ -13,6 +13,7 @@ const IndicadoresDetalhados = lazy(() => import("./pages/IndicadoresDetalhados")
 const Funcionarias = lazy(() => import("./pages/Funcionarias"));
 const Upload = lazy(() => import("./pages/Upload"));
 const Historico = lazy(() => import("./pages/Historico"));
+const HubCentral = lazy(() => import("./pages/HubCentral"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const RouteFallback = () => (
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/funcionarias" element={<Funcionarias />} />
                 <Route path="/upload" element={<Upload />} />
                 <Route path="/historico" element={<Historico />} />
+                <Route path="/hub-central" element={<HubCentral />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

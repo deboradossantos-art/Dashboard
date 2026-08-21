@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, ListChecks, Users, Upload, LogOut, Sun, Moon, Menu, X, Shield, ChevronDown, ChevronRight } from "lucide-react";
+import { LayoutDashboard, ListChecks, Users, Upload, LogOut, Sun, Moon, Menu, X, Shield, ChevronDown, ChevronRight, LayoutGrid } from "lucide-react";
 import { useAuth } from "@/components/PasswordGate";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -20,6 +20,7 @@ const items: NavItem[] = [
   { to: "/indicadores-detalhados", label: "Indicadores Operacionais Detalhados", icon: ListChecks },
   { to: "/funcionarias", label: "Por Funcionária", icon: Users },
   { to: "/upload", label: "Importar Relatórios", icon: Upload },
+  { to: "/hub-central", label: "Hub Central", icon: LayoutGrid },
   { to: "/historico", label: "Histórico de Acessos", icon: Shield, adminOnly: true },
 ];
 

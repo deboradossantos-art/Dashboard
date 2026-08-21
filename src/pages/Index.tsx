@@ -4,7 +4,6 @@ import AppShell from "@/components/layout/AppShell";
 import DashboardPageHeader from "@/components/layout/DashboardPageHeader";
 import PrimaryKpiCard from "@/components/dashboard/PrimaryKpiCard";
 import LumenFilterBar from "@/components/dashboard/LumenFilterBar";
-import DonorFunnelChart from "@/components/dashboard/DonorFunnelChart";
 import DonorStatusTrendChart from "@/components/dashboard/DonorStatusTrendChart";
 import GroupedBarChart from "@/components/dashboard/GroupedBarChart";
 import { useDashboardOverview } from "@/hooks/useDashboardOverview";
@@ -58,12 +57,12 @@ const Index = () => {
             higherIsBetter
           />
           <PrimaryKpiCard
-            label="Taxa de Ativação Geral (%)"
+            label="Taxa de Migração de Inativos para Ativos (%)"
             value={fmtPctOrDash(d.taxaAtivacao)}
             icon={UserCheck}
           />
           <PrimaryKpiCard
-            label="Taxa de Recorrência no Cartão (%)"
+            label="Taxa de Fidelização no Cartão (%)"
             value={fmtPctOrDash(d.taxaRecorrenciaCartao)}
             icon={CreditCard}
           />
@@ -76,12 +75,7 @@ const Index = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <DonorFunnelChart
-            title="Jornada de Ativação do Doador"
-            subtitle="Proposta revisada: vai até o Doador Ativo (recorrente), não só o 1º pagamento"
-            stages={d.funnelStages}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {d.temDadosCanalModalidade ? (
             <GroupedBarChart
               title="Métodos por Segmento (barras lado a lado)"

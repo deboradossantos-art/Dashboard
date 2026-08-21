@@ -93,7 +93,7 @@ export function fmtPctOrDash(v: number | null, decimals = 1): string {
   return `${v.toFixed(decimals)}%`;
 }
 
-/** Taxa de Ativação Geral (%) = qtd de ativos / qtd da base. */
+/** Taxa de Migração de Inativos para Ativos (%) = qtd de ativos / qtd da base. */
 export function calcTaxaAtivacao(report: StrategicKpiReport | null | undefined): number | null {
   const ativos = presente(report?.doadores_ativos);
   const base = presente(report?.doadores_base);
@@ -101,7 +101,7 @@ export function calcTaxaAtivacao(report: StrategicKpiReport | null | undefined):
   return (ativos / base) * 100;
 }
 
-/** Taxa de Recorrência no Cartão (%) = doadores em cartão recorrente / doadores ativos. */
+/** Taxa de Fidelização no Cartão (%) = doadores em cartão recorrente / doadores ativos. */
 export function calcTaxaRecorrenciaCartao(report: StrategicKpiReport | null | undefined): number | null {
   const cartao = presente(report?.doadores_cartao_recorrente);
   const ativos = presente(report?.doadores_ativos);
@@ -109,12 +109,22 @@ export function calcTaxaRecorrenciaCartao(report: StrategicKpiReport | null | un
   return (cartao / ativos) * 100;
 }
 
-/** Índice de Conciliação (%) = doações identificadas / total de doações. Meta: >95%. */
-export function calcIndiceConciliacao(report: StrategicKpiReport | null | undefined): number | null {
-  const identificadas = presente(report?.doacoes_identificadas);
-  const total = presente(report?.doacoes_total);
-  if (identificadas === null || total === null) return null;
-  return (identificadas / total) * 100;
+/**
+ * Índice de Conciliação de Doação (%) = todas as classificações (canais de
+ * origem) menos as pontuais, dividido por todas as classificações. Usa as
+ * linhas de channel_modality_reports do mês selecionado; cada linha vira um
+ * total (cartão de crédito + cartão recorrência + boleto + pix). Meta: >95%.
+ */
+export function calcIndiceConciliacao(rows: ChannelModalityReport[]): number | null {
+  if (rows.length === 0) return null;
+  const canalTotal = (r: ChannelModalityReport) =>
+    (r.cartao_credito ?? 0) + (r.cartao_recorrencia ?? 0) + (r.boleto ?? 0) + (r.pix ?? 0);
+  const total = rows.reduce((acc, r) => acc + canalTotal(r), 0);
+  if (total <= 0) return null;
+  const semPontuais = rows
+    .filter((r) => r.canal !== "Doação Pontual")
+    .reduce((acc, r) => acc + canalTotal(r), 0);
+  return (semPontuais / total) * 100;
 }
 
 export function calcDeltaPct(current: number | null, prev: number | null): number | null {
