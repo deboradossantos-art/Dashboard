@@ -463,18 +463,26 @@ export function useDashboardOverview() {
   // `mesesOrdenados[0]` (o mês mais antigo da lista) sempre fica com
   // variacaoAtivos null: não há mês anterior pra comparar.
   const mesesOrdenados = [...MONTHS].reverse();
-  const donorStatusChartData = mesesOrdenados.map((m, i) => {
-    const statusAtual = donorStatusReports.find((dr) => dr.mes === m.id);
-    const ativosAtual = strategicReports.find((sr) => sr.mes === m.id)?.doadores_ativos ?? null;
-    const mesAnterior = mesesOrdenados[i - 1];
-    const ativosAnterior = mesAnterior ? strategicReports.find((sr) => sr.mes === mesAnterior.id)?.doadores_ativos ?? null : null;
-    const variacaoAtivos = ativosAtual !== null && ativosAnterior !== null ? ativosAtual - ativosAnterior : null;
-    return {
-      month: shortMonthLabel(m.label),
-      variacaoAtivos,
-      churn: statusAtual?.pct_cancelados ?? null,
-    };
-  });
+  // Pedido explícito: gráfico começa em Jun/26 (e segue com os meses
+  // seguintes conforme forem adicionados a MONTHS), independente de meses
+  // anteriores terem dado ou não — não é mais "a partir do 1º mês com dado".
+  const DONOR_STATUS_CHART_START_MONTH = "2026-06";
+  const donorStatusChartData = mesesOrdenados
+    .map((m, i) => {
+      const statusAtual = donorStatusReports.find((dr) => dr.mes === m.id);
+      const ativosAtual = strategicReports.find((sr) => sr.mes === m.id)?.doadores_ativos ?? null;
+      const mesAnterior = mesesOrdenados[i - 1];
+      const ativosAnterior = mesAnterior ? strategicReports.find((sr) => sr.mes === mesAnterior.id)?.doadores_ativos ?? null : null;
+      const variacaoAtivos = ativosAtual !== null && ativosAnterior !== null ? ativosAtual - ativosAnterior : null;
+      return {
+        mes: m.id,
+        month: shortMonthLabel(m.label),
+        variacaoAtivos,
+        churn: statusAtual?.pct_cancelados ?? null,
+      };
+    })
+    .filter((d) => d.mes >= DONOR_STATUS_CHART_START_MONTH)
+    .map(({ mes, ...rest }) => rest);
 
   const kpis: { label: string; value: string; meta: string; icon: any; tone: Tone; delta: number | null; higherIsBetter: boolean; sparkline: number[] }[] = [
     {
