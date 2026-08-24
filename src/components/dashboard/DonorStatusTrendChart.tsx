@@ -31,16 +31,22 @@ const numFmt = (v: number) => (Number.isFinite(v) ? v.toLocaleString("pt-BR", { 
 const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartProps) => {
   const hasData = data.some((d) => d.variacaoAtivos !== null || d.churn !== null);
 
+  // Corta os meses iniciais sem nenhum dos dois valores: mostrá-los só
+  // deixa o trecho com dado real espremido num canto do gráfico.
+  const firstIdx = data.findIndex((d) => d.variacaoAtivos !== null || d.churn !== null);
+  const chartData = firstIdx === -1 ? data : data.slice(firstIdx);
+
   // Limite simétrico calculado aqui mesmo (não como função de domain do
   // Recharts — o Recharts chama a função do mínimo só com o dataMin e a do
   // máximo só com o dataMax, cada uma sem acesso à outra, então não dá pra
   // espelhar os dois lados só com isso). Assim o 0 sempre cai no centro.
-  const maxAbsVariacaoAtivos = Math.max(1, ...data.map((d) => (d.variacaoAtivos !== null ? Math.abs(d.variacaoAtivos) : 0)));
-  // Mesmo raciocínio pro eixo direito (Churn): sem domain simétrico, o
-  // Recharts escolhe ticks automáticos pro eixo direito que não coincidem
-  // com o 0 do eixo esquerdo, então a linha central do gráfico mostrava um
-  // valor de Churn (ex.: 6) em vez de 0.
-  const maxAbsChurn = Math.max(1, ...data.map((d) => (d.churn !== null ? Math.abs(d.churn) : 0)));
+  const maxAbsVariacaoAtivos = Math.max(1, ...chartData.map((d) => (d.variacaoAtivos !== null ? Math.abs(d.variacaoAtivos) : 0)));
+  // Churn é sempre >= 0 (% de cancelados), então o eixo direito não deve
+  // ser simétrico em torno do zero — isso desperdiçava metade da escala e
+  // fazia a linha do Churn parecer flutuar sem relação clara com o eixo.
+  // Uma folga de 20% no topo evita que o ponto mais alto encoste na borda.
+  const maxChurn = Math.max(1, ...chartData.map((d) => (d.churn !== null ? d.churn : 0)));
+  const churnDomainMax = Math.ceil(maxChurn * 1.2);
 
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm min-w-0">
@@ -55,25 +61,25 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
           </p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={data}>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={chartData} margin={{ top: 16, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
             <YAxis
               yAxisId="left"
               domain={[-maxAbsVariacaoAtivos, maxAbsVariacaoAtivos]}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-              label={{ value: "Variação de Doadores Ativos (nº)", angle: -90, position: "insideLeft", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              tick={{ fill: NAVY, fontSize: 11 }}
+              label={{ value: "Variação de Ativos (nº)", angle: -90, position: "insideLeft", fill: NAVY, fontSize: 11 }}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
-              domain={[-maxAbsChurn, maxAbsChurn]}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-              label={{ value: "Churn (%)", angle: 90, position: "insideRight", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              domain={[0, churnDomainMax]}
+              tick={{ fill: GOLD, fontSize: 11 }}
+              label={{ value: "Churn (%)", angle: 90, position: "insideRight", fill: GOLD, fontSize: 11 }}
             />
             <Tooltip
-              formatter={(v: number) => numFmt(v)}
+              formatter={(v: number, name: string) => [name === "Churn (%)" ? `${numFmt(v)}%` : numFmt(v), name]}
               contentStyle={{
                 backgroundColor: "hsl(var(--card))",
                 border: "1px solid hsl(var(--border))",
@@ -92,6 +98,7 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
               strokeWidth={3}
               dot={{ r: 5, fill: NAVY, stroke: "hsl(var(--card))", strokeWidth: 2 }}
               activeDot={{ r: 7, fill: NAVY, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+              label={{ position: "top", fontSize: 11, fill: NAVY, formatter: (v: number) => numFmt(v) }}
               connectNulls
             />
             <Line
@@ -103,6 +110,7 @@ const DonorStatusTrendChart = ({ title, subtitle, data }: DonorStatusTrendChartP
               strokeWidth={3}
               dot={{ r: 5, fill: GOLD, stroke: "hsl(var(--card))", strokeWidth: 2 }}
               activeDot={{ r: 7, fill: GOLD, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+              label={{ position: "bottom", fontSize: 11, fill: GOLD, formatter: (v: number) => `${numFmt(v)}%` }}
               connectNulls
             />
           </LineChart>
